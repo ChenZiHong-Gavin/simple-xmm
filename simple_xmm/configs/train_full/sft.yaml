@@ -1,0 +1,100 @@
+model:
+  model_name_or_path: "Qwen/Qwen2-7B-Instruct"
+  trust_remote_code: true
+
+  modal_configs:
+    protein:
+      model_path: "facebook/esm2_t12_35M_UR50D"
+      projector_type: "linear"    # linear 或 mlp
+      num_tokens: 64              # 每个序列预留的token数
+
+    dna:
+      model_path: "zhihan1996/DNABERT-2-117M"
+      projector_type: "linear"
+      num_tokens: 64
+
+    image:
+      model_path: "openai/clip-vit-base-patch32"
+      projector_type: "mlp"
+      num_tokens: 64
+
+    # 可以无限添加新模态...
+    # audio:
+    #   model_path: "openai/whisper-base"
+    #   projector_type: "linear"
+    #   num_tokens: 128
+
+special_tokens:
+  # 模板字符串，{modal}会被替换为模态名称
+  start_token_template: "<|{modal}_start|>"
+  end_token_template: "<|{modal}_end|>"
+  pad_token_template: "<|{modal}_pad|>"
+
+  system_start: "<|im_start|>system"
+  system_end: "<|im_end|>"
+  user_start: "<|im_start|>user"
+  user_end: "<|im_end|>"
+  assistant_start: "<|im_start|>assistant"
+  assistant_end: "<|im_end|>"
+
+method:
+  stage: sft
+  finetuning_type: full
+  freeze:
+    modals:
+      - protein
+      - dna
+      - image
+    projectors:
+      - protein
+      - dna
+      - image
+  deepspeed: examples/deepspeed/ds_z3_config.json
+
+dataset:
+  path: "data/train.parquet"
+  template: "Alpaca"
+  cutoff_len: 2048
+  modal_cutoff_len:
+    - protein: 512
+    - dna: 512
+    - image: 224
+  max_samples: 1000
+  preprocessing_num_workers: 16
+  dataloader_num_workers: 4
+
+output:
+  output_dir: saves/qwen3-vl-4b/full/sft
+  logging_steps: 10
+  save_steps: 500
+  save_only_model: false
+  report_to: none  # choices: [none, wandb, tensorboard, swanlab, mlflow]
+
+train:
+  # 基础参数
+  num_train_epochs: 3.0
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 8
+
+  # 优化器
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.03
+  lr_scheduler_type: "cosine"
+
+  # 混合精度
+  bf16: true    # A100/H100用bf16
+  fp16: false   # V100用fp16
+
+  # 分布式训练
+  ddp_timeout: 180000000
+
+  # 检查点
+  resume_from_checkpoint: null
+
+eval:
+  val_size: 0.1
+  per_device_eval_batch_size: 2
+  eval_strategy: steps
+  eval_steps: 500
