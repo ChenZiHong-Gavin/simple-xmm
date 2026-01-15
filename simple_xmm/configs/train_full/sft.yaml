@@ -6,23 +6,14 @@ model:
     protein:
       model_path: "facebook/esm2_t12_35M_UR50D"
       projector_type: "linear"    # linear 或 mlp
-      num_tokens: 64              # 每个序列预留的token数
-
-    dna:
-      model_path: "zhihan1996/DNABERT-2-117M"
-      projector_type: "linear"
-      num_tokens: 64
 
     image:
       model_path: "openai/clip-vit-base-patch32"
       projector_type: "mlp"
-      num_tokens: 64
 
-    # 可以无限添加新模态...
     # audio:
     #   model_path: "openai/whisper-base"
     #   projector_type: "linear"
-    #   num_tokens: 128
 
 special_tokens:
   # 模板字符串，{modal}会被替换为模态名称
@@ -51,7 +42,7 @@ method:
       - image
   deepspeed: examples/deepspeed/ds_z3_config.json
 
-dataset:
+data:
   path: "data/train.parquet"
   template: "Alpaca"
   cutoff_len: 2048

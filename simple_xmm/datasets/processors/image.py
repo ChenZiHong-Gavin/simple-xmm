@@ -31,4 +31,4 @@ class ImageModalProcessor(BaseModalProcessor):
 
         pixel_values = inputs["pixel_values"].squeeze(0)  # (C, H, W)
 
-        return {"pixel_values": pixel_values}
+        return {"image_values": pixel_values}

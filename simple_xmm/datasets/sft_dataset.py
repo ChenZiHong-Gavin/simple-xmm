@@ -1,4 +1,5 @@
 from typing import Dict, Any, TypedDict, List
+from dataclasses import dataclass
 import re
 import torch
 from torch.utils.data import Dataset
@@ -6,6 +7,8 @@ from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoTokenizer
 from datasets import load_dataset
 from simple_xmm.utils.registry import get_template_class
+from .processors.base import BaseModalProcessor
+
 
 IGNORE_INDEX = -100
 
@@ -20,7 +23,7 @@ class XMMSeq2SeqBatch(TypedDict, total=True):
     input_ids: torch.Tensor  # shape: (B, L)
     labels: torch.Tensor  # shape: (B, L)
     attention_mask: torch.Tensor  # shape: (B, L)
-    modal_info: List[List[Dict[str, Any]]]
+    modal_info: List[List[Dict[str, Any]]] = []
 
 
 class XMMSeq2SeqDataset(Dataset):
@@ -29,11 +32,11 @@ class XMMSeq2SeqDataset(Dataset):
         path: str,
         template: str,
         tokenizer: AutoTokenizer,
+        processors: Dict[str, BaseModalProcessor],
         dataset_name: str = None,
         split: str = "train",
         data_files: str = None,
         max_samples: int = None,
-        modals: List[str] = [],
     ):
         """
         Args:
@@ -68,11 +71,11 @@ class XMMSeq2SeqDataset(Dataset):
                 range(min(int(max_samples), len(self.raw_data)))
             )
         self.formatter = get_template_class(template)
-        # <modal>...</modal>, re.DOTALL 允许匹配换行符
-        self.regex_map = {
-            k: re.compile(rf"<{k}>\s*(.*?)\s*</{k}>", re.DOTALL) for k in modals
-        }
-        self.modals = modals
+
+        self.processors = processors
+        for proc in self.processors.values():
+            if self.tokenizer.convert_tokens_to_ids(proc.pad_token) is None:
+                raise ValueError(f"Pad token {proc.pad_token} not found in tokenizer.")
 
     def _process_prompt(self, text: str):
         """分离模态标签并插入对应padding"""
@@ -80,11 +83,11 @@ class XMMSeq2SeqDataset(Dataset):
         modal_info: List[Dict[str, Any]] = []
 
         matches = []
-        for m_type, pattern in self.regex_map.items():
-            for m in pattern.finditer(text):
+        for proc in self.processors.values():
+            for m in proc.pattern.finditer(text):
                 matches.append(
                     {
-                        "type": m_type,
+                        "processor": proc,
                         "start": m.start(),
                         "end": m.end(),
                         "content": m.group(1),
@@ -99,19 +102,22 @@ class XMMSeq2SeqDataset(Dataset):
                 input_ids.extend(
                     self.tokenizer.encode(text_part, add_special_tokens=False)
                 )
+            proc = m["processor"]
+            processed_content = proc.process(m["content"])
 
-            m_type = m["type"]
+            pad_id = self.tokenizer.convert_tokens_to_ids(proc.pad_token)
 
-            pad_token_str = f"<|{m_type}_pad|>"
-            pad_id = self.tokenizer.convert_tokens_to_ids(pad_token_str)
-            if pad_id is None or pad_id == self.tokenizer.unk_token_id:
-                raise ValueError(f"Pad token <|{m_type}_pad|> not found in tokenizer.")
-
-            start_idx = len(input_ids)
-            input_ids.append(pad_id)
             modal_info.append(
-                {"type": m_type, "start": start_idx, "content": m["content"]}
+                {
+                    "type": proc.tag,
+                    "start": len(input_ids),
+                    "raw": m["content"],
+                    "content": processed_content,
+                }
             )
+
+            # 插入占位符
+            input_ids.append(pad_id)
             curr_pos = m["end"]
 
         if curr_pos < len(text):
@@ -150,72 +156,89 @@ class XMMSeq2SeqDataset(Dataset):
         return len(self.raw_data)
 
 
-class XMMSeq2SeqCollator:
-    def __init__(self, tokenizer: AutoTokenizer):
-        self.pad_token_id = tokenizer.pad_token_id
+@dataclass
+class XMMDataCollator:
+    tokenizer: Any
+    audio_pad_value: float = 0.0
+    protein_pad_value: int = 1  # ESM pad_token_id
+    image_pad_value: float = 0.0
 
-    def __call__(self, batch: List[XMMSeq2SeqSample]) -> XMMSeq2SeqBatch:
-        input_ids = [x["input_ids"] for x in batch]
-        labels = [x["labels"] for x in batch]
-        modal_infos = [x.get("modal_info", []) for x in batch]
+    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, Any]:
+        input_ids = [f["input_ids"] for f in features]
+        labels = [f["labels"] for f in features]
 
-        # Pad 文本
         input_ids_padded = pad_sequence(
-            input_ids, batch_first=True, padding_value=self.pad_token_id
+            input_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id
         )
         labels_padded = pad_sequence(
             labels, batch_first=True, padding_value=IGNORE_INDEX
         )
-        attention_mask = input_ids_padded.ne(self.pad_token_id)
+        attention_mask = input_ids_padded.ne(self.tokenizer.pad_token_id).long()
 
-        return {
+        batch = {
             "input_ids": input_ids_padded,
             "labels": labels_padded,
             "attention_mask": attention_mask,
-            "modal_info": modal_infos,
         }
 
+        # 收集各模态数据
+        all_audio = []
+        all_protein = []
+        all_image = []
 
-if __name__ == "__main__":
-    import json
-    import os
-    import tempfile
+        for sample in features:
+            for modal in sample["modal_info"]:
+                m_type = modal["type"]
+                m_data = modal["content"]
 
-    modals = ["protein"]
-    tokenizer = AutoTokenizer.from_pretrained(
-        r"D:\Project\work\shanghai ai lab\GraphGen\models", trust_remote_code=True
-    )
-    if tokenizer.pad_token_id is None:
-        tokenizer.add_special_tokens({"pad_token": "<|pad|>"})
-    special_tokens = {"additional_special_tokens": [f"<|{m}_pad|>" for m in modals]}
-    tokenizer.add_special_tokens(special_tokens)
+                if m_type == "audio":
+                    all_audio.append(m_data["audio_values"])
+                elif m_type == "protein":
+                    all_protein.append(m_data["protein_values"])
+                elif m_type == "image":
+                    all_image.append(m_data["image_values"])
 
-    sample = {
-        "instruction": "<protein>ACDEFGHIKLMNPQRSTVWY</protein> 请分析该序列",
-        "input": "",
-        "output": "这是一个示例回复",
-    }
-    tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
-    try:
-        json.dump([sample], tmp)
-        tmp.flush()
-        tmp.close()
-        dataset = XMMSeq2SeqDataset(
-            path=tmp.name,
-            template="Alpaca",
-            tokenizer=tokenizer,
-            split="train",
-            max_samples=1,
-            modals=modals,
-        )
-        collator = XMMSeq2SeqCollator(tokenizer)
-        batch = collator([dataset[0], dataset[0]])
-        print("input_ids.shape:", batch["input_ids"].shape)
-        print("labels.shape:", batch["labels"].shape)
-        print("attention_mask.sum:", int(batch["attention_mask"].sum()))
-        print("modal_info:", batch["modal_info"])
-    finally:
-        try:
-            os.unlink(tmp.name)
-        except Exception:
-            pass
+        # 模态数据处理 (生成 Mask + Padding)
+        # --- Audio: 连续信号，必须手动生成 Mask ---
+        if all_audio:
+            # 假设输入可能是 (Seq,) 或 (Freq, Seq)
+            # 我们统一转为 (Seq, ...) 进行 pad_sequence
+            processed_audio = []
+            audio_masks = []
+
+            for wav in all_audio:
+                # 确保是 (Seq, ...) 格式
+                if wav.dim() == 2 and wav.shape[0] < wav.shape[1]:
+                    # 假设是 (Freq, Seq)，转置为 (Seq, Freq)
+                    wav = wav.transpose(0, 1)
+
+                processed_audio.append(wav)
+
+                # 【核心】生成 Mask: 在 Pad 之前，创建一个全 1 的 tensor
+                # 长度等于当前样本的时间步长 (Seq 维度)
+                seq_len = wav.shape[0]
+                audio_masks.append(torch.ones(seq_len, dtype=torch.long))
+
+            # shape: (B, Seq, Freq) 或 (B, Seq)
+            batch["audio_values"] = pad_sequence(
+                processed_audio, batch_first=True, padding_value=self.audio_pad_value
+            )
+            batch["audio_attention_mask"] = pad_sequence(
+                audio_masks, batch_first=True, padding_value=0
+            )
+
+        # --- Protein: 离散 Token，可以根据 pad_value 生成 Mask ---
+        if all_protein:
+            padded_protein = pad_sequence(
+                all_protein, batch_first=True, padding_value=self.protein_pad_value
+            )
+            batch["protein_values"] = padded_protein
+            batch["protein_attention_mask"] = padded_protein.ne(
+                self.protein_pad_value
+            ).long()
+
+        # --- Image: 固定大小，通常不需要 Mask ---
+        if all_image:
+            batch["image_values"] = torch.stack(all_image)
+
+        return batch

@@ -31,6 +31,5 @@ class ProteinModalProcessor(BaseModalProcessor):
         )  # shape: (1, seq_len)
 
         return {
-            "protein_input_ids": inputs["input_ids"].squeeze(0),
-            "protein_attention_mask": inputs["attention_mask"].squeeze(0),
+            "protein_values": inputs["input_ids"].squeeze(0),
         }
