@@ -11,6 +11,8 @@ class BaseModalProcessor(ABC):
         self.tag = tag
         self.pattern = re.compile(rf"<{tag}>\s*(.*?)\s*</{tag}>", re.DOTALL)
         self.pad_token = f"<|{tag}_pad|>"
+        self.start_token = f"<{tag}>"
+        self.end_token = f"</{tag}>"
 
     @abstractmethod
     def process(self, content: str) -> Dict[str, Any]:

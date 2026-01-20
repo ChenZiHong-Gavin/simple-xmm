@@ -20,6 +20,7 @@ class XMMModel(nn.Module):
         self.llm = llm
         self.modal_encoders = nn.ModuleDict()
         self.modal_projectors = nn.ModuleDict()
+        self.modal_configs = modal_configs
 
         for modal_name, config in modal_configs.items():
             encoder = AutoModel.from_pretrained(config.model_path)
@@ -47,44 +48,33 @@ class XMMModel(nn.Module):
         encoder = self.modal_encoders[modal_type]
         projector = self.modal_projectors[modal_type]
 
-        # 1. Encoder Forward (利用 Mask)
         if modal_type == "audio":
-            # Whisper/Wav2Vec2 等通常支持 attention_mask
             outputs = encoder(input_features=values, attention_mask=attention_mask)
         elif modal_type == "protein":
             outputs = encoder(input_ids=values, attention_mask=attention_mask)
-        else:  # Image
+        elif modal_type == "image":
             outputs = encoder(pixel_values=values)
+        else:
+            raise ValueError(f"Unsupported modal type: {modal_type}")
 
-        last_hidden_state = outputs.last_hidden_state  # (B, Out_Seq, Dim)
+        last_hidden_state = outputs.last_hidden_state
+        # 投影到 LLM 维度
+        features = projector(last_hidden_state)  # (B, Out_Seq, Dim)
 
-        # 2. 投影到 LLM 维度
-        features = projector(last_hidden_state)
-
-        # 3. 动态切片 (关键步骤)
         results = []
         batch_size = features.shape[0]
 
+        # 计算 Input Mask 到 Output Mask 的映射
         if attention_mask is not None:
-            # 计算 Input Mask 到 Output Mask 的映射
             input_lens = attention_mask.sum(dim=1)  # (B,)
 
-            # 尝试使用 Encoder 自带的长度计算器 (Wav2Vec2, Whisper 有此方法)
-            if hasattr(encoder, "_get_feat_extract_output_lengths"):
-                valid_out_lens = encoder._get_feat_extract_output_lengths(input_lens)
-            else:
-                # Fallback: 根据 shape 比例估算 (Output / Input)
-                # 注意：这里用 Max length 计算比例
-                scale = features.shape[1] / values.shape[1]
-                valid_out_lens = (input_lens * scale).long()
-                # 修正边界，防止算出 0
-                valid_out_lens = torch.clamp(
-                    valid_out_lens, min=1, max=features.shape[1]
-                )
+            scale = features.shape[1] / values.shape[1]
+            valid_out_lens = (input_lens * scale).long()
+            # 修正边界，防止算出 0
+            valid_out_lens = torch.clamp(valid_out_lens, min=1, max=features.shape[1])
 
             for i in range(batch_size):
                 length = valid_out_lens[i]
-                # 只取有效长度
                 results.append(features[i, :length, :])
         else:
             # 如果没有 mask (如图片)，直接全取
@@ -96,21 +86,22 @@ class XMMModel(nn.Module):
     def prepare_multimodal_inputs(
         self, input_ids, labels, attention_mask, modal_info, modal_features
     ):
-        """拼接文本和动态长度的模态特征"""
         new_inputs_embeds = []
         new_labels = []
         new_attention_masks = []
 
-        # 获取基础文本 Embedding
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
-
-        # 模态计数器
         modal_counters = {k: 0 for k in modal_features.keys()}
 
         for i in range(len(input_ids)):
-            cur_embeds = inputs_embeds[i]
-            cur_labels = labels[i]
-            cur_mask = attention_mask[i]
+            # 1. 确定当前样本的有效文本长度（去除 Padding）
+            # 假设 tokenizer padding side 是 right，且 pad_token_id 对应的 mask 是 0
+            valid_len = attention_mask[i].sum().item()
+
+            cur_embeds = inputs_embeds[i, :valid_len]  # 只取有效部分
+            cur_labels = labels[i, :valid_len]
+            cur_mask = attention_mask[i, :valid_len]  # 全是 1
+
             cur_info = sorted(modal_info[i], key=lambda x: x["start"])
 
             parts_embeds = []
@@ -123,47 +114,52 @@ class XMMModel(nn.Module):
                 m_type = info["type"]
                 m_start = info["start"]
 
-                # 1. 放入之前的文本
+                # 过滤掉超出 valid_len 的异常 info (防止 dataset 处理出错)
+                if m_start >= valid_len:
+                    continue
+
+                # 拼接之前的文本
                 if m_start > cur_pos:
                     parts_embeds.append(cur_embeds[cur_pos:m_start])
                     parts_labels.append(cur_labels[cur_pos:m_start])
                     parts_masks.append(cur_mask[cur_pos:m_start])
 
-                # 2. 放入模态特征 (动态长度)
+                # 拼接模态特征
                 if m_type in modal_features:
                     idx = modal_counters[m_type]
-                    feature = modal_features[m_type][idx]  # 这是一个不定长的 Tensor
+                    feature = modal_features[m_type][idx]
                     modal_counters[m_type] += 1
 
                     parts_embeds.append(feature)
 
-                    # 扩展 Label (-100) 和 Mask (1)
+                    # 标签设为 IGNORE_INDEX
                     feat_len = feature.shape[0]
                     parts_labels.append(
                         torch.full(
                             (feat_len,), -100, device=feature.device, dtype=torch.long
                         )
                     )
+                    # Mask 设为 1
                     parts_masks.append(
                         torch.full(
                             (feat_len,), 1, device=feature.device, dtype=torch.long
                         )
                     )
 
-                cur_pos = m_start + 1  # 跳过原来的占位符
+                # 跳过原文本中的占位符 token (假设占位符长度为1)
+                cur_pos = m_start + 1
 
-            # 3. 放入剩余文本
+            # 拼接剩余的有效文本
             if cur_pos < len(cur_embeds):
                 parts_embeds.append(cur_embeds[cur_pos:])
                 parts_labels.append(cur_labels[cur_pos:])
                 parts_masks.append(cur_mask[cur_pos:])
 
-            # 拼接单个样本
             new_inputs_embeds.append(torch.cat(parts_embeds, dim=0))
             new_labels.append(torch.cat(parts_labels, dim=0))
             new_attention_masks.append(torch.cat(parts_masks, dim=0))
 
-        # 再次 Padding 组成 Batch (因为插入后长度不齐了)
+        # 重新 Padding 成 Batch
         batch_embeds = pad_sequence(
             new_inputs_embeds, batch_first=True, padding_value=0.0
         )
@@ -185,11 +181,10 @@ class XMMModel(nn.Module):
         protein_values: Optional[torch.Tensor] = None,
         protein_attention_mask: Optional[torch.Tensor] = None,
         modal_info: Optional[List] = None,
-        **kwargs
+        **kwargs,
     ):
         modal_features = {}
 
-        # 编码模态特征
         if image_values:
             modal_features["image"] = self.encode_modality("image", image_values)
 
@@ -203,7 +198,7 @@ class XMMModel(nn.Module):
                 "protein", protein_values, attention_mask=protein_attention_mask
             )
 
-        # 混合特征
+        # splice
         if modal_features and modal_info:
             inputs_embeds, labels, attention_mask = self.prepare_multimodal_inputs(
                 input_ids, labels, attention_mask, modal_info, modal_features
@@ -211,11 +206,18 @@ class XMMModel(nn.Module):
         else:
             inputs_embeds = self.llm.get_input_embeddings()(input_ids)
 
-        # LLM Forward
+        # 防止梯度断流
+        if (
+            self.training
+            and self.llm.is_gradient_checkpointing
+            and inputs_embeds.requires_grad is False
+        ):
+            inputs_embeds.requires_grad_(True)
+
         return self.llm(
             inputs_embeds=inputs_embeds,
             labels=labels,
             attention_mask=attention_mask,
             return_dict=True,
-            **kwargs
+            **kwargs,
         )

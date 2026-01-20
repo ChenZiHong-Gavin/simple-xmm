@@ -181,7 +181,6 @@ class XMMDataCollator:
             "attention_mask": attention_mask,
         }
 
-        # 收集各模态数据
         all_audio = []
         all_protein = []
         all_image = []
