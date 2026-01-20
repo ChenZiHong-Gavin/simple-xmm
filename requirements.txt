@@ -3,3 +3,6 @@ torch
 torchaudio
 datasets
 transformers
+Pillow
+accelerate
+omegaconf

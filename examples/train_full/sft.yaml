@@ -1,32 +1,20 @@
 model:
-  model_name_or_path: "Qwen/Qwen2-7B-Instruct"
+  # llm_name_or_path: "Qwen/Qwen2-7B-Instruct"
+  llm_name_or_path: "/mnt/shared-storage-user/ai4agr-share/share/Qwen3-0.6B"
   trust_remote_code: true
 
   modal_configs:
-    protein:
-      model_path: "facebook/esm2_t12_35M_UR50D"
-      projector_type: "linear"    # linear 或 mlp
+    # protein:
+    #   model_path: "facebook/esm2_t12_35M_UR50D"
+    #   projector_type: "mlp"    # linear 或 mlp
 
-    image:
-      model_path: "openai/clip-vit-base-patch32"
-      projector_type: "mlp"
+    # image:
+    #   model_path: "openai/clip-vit-base-patch32"
+    #   projector_type: "mlp"
 
     # audio:
     #   model_path: "openai/whisper-base"
     #   projector_type: "linear"
-
-special_tokens:
-  # 模板字符串，{modal}会被替换为模态名称
-  start_token_template: "<|{modal}_start|>"
-  end_token_template: "<|{modal}_end|>"
-  pad_token_template: "<|{modal}_pad|>"
-
-  system_start: "<|im_start|>system"
-  system_end: "<|im_end|>"
-  user_start: "<|im_start|>user"
-  user_end: "<|im_end|>"
-  assistant_start: "<|im_start|>assistant"
-  assistant_end: "<|im_end|>"
 
 method:
   stage: sft
@@ -43,7 +31,7 @@ method:
   deepspeed: examples/deepspeed/ds_z3_config.json
 
 data:
-  path: "data/train.parquet"
+  path: "data/alpaca_demo.json"
   template: "Alpaca"
   cutoff_len: 2048
   modal_cutoff_len:

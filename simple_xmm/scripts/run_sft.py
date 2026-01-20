@@ -2,6 +2,7 @@ import yaml
 import torch
 import logging
 from typing import Dict
+from omegaconf import OmegaConf
 
 from transformers import (
     AutoTokenizer,
@@ -25,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 def build_processors(modal_configs: Dict, processor_args: Dict):
-    """根据配置动态实例化 Processors"""
     processors = {}
     PROCESSOR_MAP = {
         "audio": (AudioModalProcessor, "audio"),
@@ -66,19 +66,20 @@ def run_sft(
     output_dir,
     local_rank,
 ):
-    with open(config_path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
+    cfg = OmegaConf.load(config_path)
 
     set_seed(42)
 
     # Text Tokenizer
-    llm_path = cfg["model"]["llm_path"]
+    llm_path = cfg["model"]["llm_name_or_path"]
     tokenizer = AutoTokenizer.from_pretrained(llm_path, trust_remote_code=True)
+
+    modal_configs = cfg["model"]["modal_configs"] or {}
 
     # Processors
     logger.info("Building processors...")
     processors = build_processors(
-        cfg["model"]["modalities"], cfg["data"].get("processor_args", {})
+        modal_configs, cfg["data"].get("processor_args", {})
     )
 
     # Special Tokens: pad_token, start_token, end_token
@@ -90,7 +91,7 @@ def run_sft(
     # --- 3. Dataset & Collator ---
     logger.info("Loading dataset...")
     train_dataset = XMMSeq2SeqDataset(
-        path=cfg["data"]["train_file"],
+        path=cfg["data"]["path"],
         template=cfg["data"]["template"],
         tokenizer=tokenizer,
         processors=processors,
@@ -109,7 +110,7 @@ def run_sft(
     llm = AutoModelForCausalLM.from_pretrained(
         llm_path,
         trust_remote_code=True,
-        torch_dtype=torch.bfloat16 if cfg["training"]["bf16"] else torch.float16,
+        torch_dtype=torch.bfloat16 if cfg["train"]["bf16"] else torch.float16,
     )
 
     # Resize embedding 因为添加了 special tokens
@@ -117,7 +118,7 @@ def run_sft(
 
     # 构建 Modal Configs 对象
     modal_projector_configs = {}
-    for name, conf in cfg["model"]["modalities"].items():
+    for name, conf in modal_configs.items():
         modal_projector_configs[name] = ModalProjectorConfig(
             model_path=conf["model_path"],
             projector_type=conf.get("projector_type", "mlp"),
@@ -127,7 +128,7 @@ def run_sft(
 
     # --- 5. Freeze Strategy ---
     # 冻结 Modal Encoders (通常都冻结)
-    for name, conf in cfg["model"]["modalities"].items():
+    for name, conf in modal_configs.items():
         if not conf.get("trainable", False):
             logger.info(f"Freezing encoder: {name}")
             for param in model.modal_encoders[name].parameters():
@@ -135,7 +136,7 @@ def run_sft(
                 logger.debug("Frozen parameter: %s", name)
 
     # 冻结 LLM (如果配置要求)
-    if cfg["training"].get("freeze_llm", False):
+    if cfg["train"].get("freeze_llm", False):
         logger.info("Freezing LLM backbone...")
         for param in model.llm.parameters():
             param.requires_grad = False
@@ -148,7 +149,7 @@ def run_sft(
     logger.info(f"Trainable Parameters: {trainable_params / 1e6:.2f} M")
 
     # Trainer
-    training_args = TrainingArguments(**cfg["training"])
+    training_args = TrainingArguments(**cfg["train"], save_safetensors=False)
 
     trainer = Trainer(
         model=model,
