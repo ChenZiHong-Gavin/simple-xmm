@@ -1,7 +1,6 @@
-import yaml
-import torch
 import logging
 from typing import Dict
+import torch
 from omegaconf import OmegaConf
 
 from transformers import (
@@ -148,8 +147,8 @@ def run_sft(
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Trainable Parameters: {trainable_params / 1e6:.2f} M")
 
-    # Trainer
-    training_args = TrainingArguments(**cfg["train"], save_safetensors=False)
+    training_args_dict = {**cfg["train"], **cfg["output"]}
+    training_args = TrainingArguments(**training_args_dict, save_safetensors=False)
 
     trainer = Trainer(
         model=model,
