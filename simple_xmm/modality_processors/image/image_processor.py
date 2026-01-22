@@ -2,7 +2,7 @@ from typing import Dict, Any, List, Tuple, Optional
 from PIL import Image
 from transformers import AutoImageProcessor
 import torch
-from simple_xmm.modality_processors.base import BaseModalProcessor
+from simple_xmm.modality_processors.base_processor import BaseModalProcessor
 
 
 class ImageModalProcessor(BaseModalProcessor):

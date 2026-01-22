@@ -16,6 +16,13 @@ model:
     #   model_path: "openai/whisper-base"
     #   projector_type: "linear"
 
+output:
+  output_dir: saves/Qwen3-0.6B/full/sft
+  logging_steps: 10
+  save_steps: 500
+  save_only_model: false
+  report_to: none  # choices: [none, wandb, tensorboard, swanlab, mlflow]
+
 method:
   stage: sft
   finetuning_type: full
@@ -39,13 +46,6 @@ data:
   dataloader_num_workers: 4
   val_size: 0.1
 
-output:
-  output_dir: saves/qwen3-vl-4b/full/sft
-  logging_steps: 10
-  save_steps: 500
-  save_only_model: false
-  report_to: none  # choices: [none, wandb, tensorboard, swanlab, mlflow]
-
 train:
   # 基础参数
   num_train_epochs: 3.0
@@ -59,8 +59,8 @@ train:
   lr_scheduler_type: "cosine"
 
   # 混合精度
-  bf16: true    # A100/H100用bf16
-  fp16: false   # V100用fp16
+  bf16: true
+  fp16: false
 
   # 分布式训练
   ddp_timeout: 180000000
@@ -70,5 +70,5 @@ train:
 
   # 评估
   per_device_eval_batch_size: 2
-  eval_strategy: steps
-  eval_steps: 500
+  eval_strategy: epoch
+  # eval_steps: 500

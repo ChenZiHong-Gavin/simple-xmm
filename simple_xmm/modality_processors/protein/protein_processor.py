@@ -2,7 +2,7 @@ from transformers import AutoTokenizer
 from typing import Dict, Any, List, Tuple, Optional
 import torch
 from torch.nn.utils.rnn import pad_sequence
-from simple_xmm.modality_processors.base import BaseModalProcessor
+from simple_xmm.modality_processors.base_processor import BaseModalProcessor
 
 
 class ProteinModalProcessor(BaseModalProcessor):

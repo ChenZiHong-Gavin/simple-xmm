@@ -54,7 +54,7 @@ def build_datasets(data_config: Dict, tokenizer, processors):
         tokenizer=tokenizer,
         processors=processors,
         max_samples=data_config.get("max_samples", None),
-        cutoff_len=data_config.get("cutoff_len", 2048),
+        # cutoff_len=data_config.get("cutoff_len", 2048),
     )
 
     val_size = data_config.get("val_size", 0.0)
@@ -65,7 +65,7 @@ def build_datasets(data_config: Dict, tokenizer, processors):
         train_len = dataset_len - val_len
 
         generator = torch.Generator()
-        train_dataset, val_dataset = random_split(
+        train_dataset, eval_dataset = random_split(
             full_dataset, [train_len, val_len], generator=generator
         )
         logger.info(
@@ -73,12 +73,12 @@ def build_datasets(data_config: Dict, tokenizer, processors):
         )
     else:
         train_dataset = full_dataset
-        val_dataset = None
+        eval_dataset = None
         logger.info(
             f"No validation split defined. Using all {len(full_dataset)} samples for training."
         )
 
-    return train_dataset, val_dataset
+    return train_dataset, eval_dataset
 
 
 def run_sft(config_path):
@@ -90,7 +90,7 @@ def run_sft(config_path):
     llm_path = cfg["model"]["llm_name_or_path"]
     tokenizer = AutoTokenizer.from_pretrained(llm_path, trust_remote_code=True)
 
-    modal_configs = cfg["model"]["modal_configs"]
+    modal_configs = cfg["model"]["modal_configs"] or {}
 
     # Processors
     logger.info("Setting up processors...")
@@ -102,7 +102,7 @@ def run_sft(config_path):
     # --- 3. Dataset & Collator ---
     logger.info("Loading dataset...")
     data_config = cfg["data"]
-    train_dataset, val_dataset = build_datasets(data_config, tokenizer, processors)
+    train_dataset, eval_dataset = build_datasets(data_config, tokenizer, processors)
 
     collator = XMMDataCollator(
         tokenizer=tokenizer,
@@ -142,6 +142,7 @@ def run_sft(config_path):
         model=model,
         args=training_args,
         train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         data_collator=collator,
         tokenizer=tokenizer,
     )

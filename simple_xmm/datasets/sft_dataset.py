@@ -7,7 +7,7 @@ from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoTokenizer
 from datasets import load_dataset
 from simple_xmm.utils.registry import get_template_class
-from simple_xmm.modality_processors.base import BaseModalProcessor
+from simple_xmm.modality_processors.base_processor import BaseModalProcessor
 
 
 IGNORE_INDEX = -100

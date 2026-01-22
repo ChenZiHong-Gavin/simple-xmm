@@ -6,10 +6,6 @@ from simple_xmm.scripts.run_sft import run_sft
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True, help="Path to yaml config")
-    parser.add_argument(
-        "--output_dir", type=str, default="output", help="Output directory"
-    )
-    parser.add_argument("--local_rank", type=int, default=-1)
     args = parser.parse_args()
 
     # Setup Logging
@@ -20,7 +16,7 @@ def main():
     )
 
     run_sft(
-        config_path=args.config, output_dir=args.output_dir, local_rank=args.local_rank
+        config_path=args.config
     )
 
 

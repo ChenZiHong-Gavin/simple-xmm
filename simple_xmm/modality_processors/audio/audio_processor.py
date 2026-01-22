@@ -2,7 +2,7 @@ from typing import Dict, Any, List, Tuple, Optional
 import torch
 import torchaudio
 from transformers import AutoFeatureExtractor
-from simple_xmm.modality_processors.base import BaseModalProcessor
+from simple_xmm.modality_processors.base_processor import BaseModalProcessor
 from torch.nn.utils.rnn import pad_sequence
 
 
