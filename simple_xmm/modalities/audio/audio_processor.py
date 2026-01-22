@@ -1,8 +1,9 @@
+from typing import Dict, Any, List, Tuple
 import torch
 import torchaudio
 from transformers import AutoFeatureExtractor
-from typing import Dict, Any
-from .base import BaseModalProcessor
+from simple_xmm.modalities.base import BaseModalProcessor
+from torch.nn.utils.rnn import pad_sequence
 
 
 class AudioModalProcessor(BaseModalProcessor):
@@ -17,6 +18,7 @@ class AudioModalProcessor(BaseModalProcessor):
         super().__init__(tag)
         self.feature_extractor = audio_processor
         self.target_sampling_rate = self.feature_extractor.sampling_rate
+        self.pad_value = self.feature_extractor.padding_value
 
     def process(self, content: str) -> Dict[str, Any]:
         """
@@ -30,12 +32,12 @@ class AudioModalProcessor(BaseModalProcessor):
             print(f"Error loading audio: {audio_path}, {e}")
             return {"audio_values": None}
 
-        # 重采样 (Resample) 到模型需要的采样率
+        # 重采样到模型需要的采样率
         if sr != self.target_sampling_rate:
             resampler = torchaudio.transforms.Resample(sr, self.target_sampling_rate)
             waveform = resampler(waveform)
 
-        # 处理多声道：如果是立体声，通常转为单声道
+        # 如果是立体声，通常转为单声道
         if waveform.shape[0] > 1:
             waveform = torch.mean(waveform, dim=0, keepdim=True)
 
@@ -57,3 +59,41 @@ class AudioModalProcessor(BaseModalProcessor):
         result["audio_lens"] = result["audio_values"].shape[-1]
 
         return result
+
+    def pad(self, features: List[Dict[str, Any]]) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        对音频特征进行padding和mask生成
+        Args:
+            features: 包含processed音频特征的列表
+        Returns:
+            Tuple[padded_features, attention_mask]
+        """
+        # 过滤掉None值
+        audio_values = [
+            f["audio_values"] for f in features if f.get("audio_values") is not None
+        ]
+
+        if not audio_values:
+            return torch.empty(0), torch.empty(0)
+
+        processed_audio = []
+        audio_masks = []
+
+        for wav in audio_values:
+            # (Seq, ...)
+            if wav.dim() == 2 and wav.shape[0] < wav.shape[1]:
+                # (Freq, Seq) -> (Seq, Freq)
+                wav = wav.transpose(0, 1)
+
+            processed_audio.append(wav)
+
+            seq_len = wav.shape[0]
+            audio_masks.append(torch.ones(seq_len, dtype=torch.long))
+
+        # shape: (B, Seq, Freq) 或 (B, Seq)
+        padded_features = pad_sequence(
+            processed_audio, batch_first=True, padding_value=self.pad_value
+        )
+        attention_mask = pad_sequence(audio_masks, batch_first=True, padding_value=0)
+
+        return padded_features, attention_mask

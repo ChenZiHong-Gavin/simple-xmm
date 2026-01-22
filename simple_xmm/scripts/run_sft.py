@@ -60,11 +60,7 @@ def build_processors(modal_configs: Dict, processor_args: Dict):
     return processors
 
 
-def run_sft(
-    config_path,
-    output_dir,
-    local_rank,
-):
+def run_sft(config_path):
     cfg = OmegaConf.load(config_path)
 
     set_seed(42)
@@ -77,9 +73,7 @@ def run_sft(
 
     # Processors
     logger.info("Building processors...")
-    processors = build_processors(
-        modal_configs, cfg["data"].get("processor_args", {})
-    )
+    processors = build_processors(modal_configs, cfg["data"].get("processor_args", {}))
 
     # Special Tokens: pad_token, start_token, end_token
     special_tokens = [p.pad_token for p in processors.values()]

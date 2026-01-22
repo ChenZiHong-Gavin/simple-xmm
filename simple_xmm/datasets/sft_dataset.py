@@ -7,7 +7,7 @@ from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoTokenizer
 from datasets import load_dataset
 from simple_xmm.utils.registry import get_template_class
-from .processors.base import BaseModalProcessor
+from simple_xmm.modalities.base import BaseModalProcessor
 
 
 IGNORE_INDEX = -100
@@ -159,9 +159,7 @@ class XMMSeq2SeqDataset(Dataset):
 @dataclass
 class XMMDataCollator:
     tokenizer: Any
-    audio_pad_value: float = 0.0
-    protein_pad_value: int = 1  # ESM pad_token_id
-    image_pad_value: float = 0.0
+    processors: Dict[str, BaseModalProcessor]
 
     def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, Any]:
         input_ids = [f["input_ids"] for f in features]
@@ -181,63 +179,23 @@ class XMMDataCollator:
             "attention_mask": attention_mask,
         }
 
-        all_audio = []
-        all_protein = []
-        all_image = []
+        modalities = {}
+        for modal in self.processors.keys():
+            modalities[modal] = []
 
         for sample in features:
             for modal in sample["modal_info"]:
                 m_type = modal["type"]
                 m_data = modal["content"]
+                modalities[m_type].append(m_data)
 
-                if m_type == "audio":
-                    all_audio.append(m_data["audio_values"])
-                elif m_type == "protein":
-                    all_protein.append(m_data["protein_values"])
-                elif m_type == "image":
-                    all_image.append(m_data["image_values"])
-
-        # 模态数据处理 (生成 Mask + Padding)
-        # --- Audio: 连续信号，必须手动生成 Mask ---
-        if all_audio:
-            # 假设输入可能是 (Seq,) 或 (Freq, Seq)
-            # 我们统一转为 (Seq, ...) 进行 pad_sequence
-            processed_audio = []
-            audio_masks = []
-
-            for wav in all_audio:
-                # 确保是 (Seq, ...) 格式
-                if wav.dim() == 2 and wav.shape[0] < wav.shape[1]:
-                    # 假设是 (Freq, Seq)，转置为 (Seq, Freq)
-                    wav = wav.transpose(0, 1)
-
-                processed_audio.append(wav)
-
-                # 【核心】生成 Mask: 在 Pad 之前，创建一个全 1 的 tensor
-                # 长度等于当前样本的时间步长 (Seq 维度)
-                seq_len = wav.shape[0]
-                audio_masks.append(torch.ones(seq_len, dtype=torch.long))
-
-            # shape: (B, Seq, Freq) 或 (B, Seq)
-            batch["audio_values"] = pad_sequence(
-                processed_audio, batch_first=True, padding_value=self.audio_pad_value
-            )
-            batch["audio_attention_mask"] = pad_sequence(
-                audio_masks, batch_first=True, padding_value=0
-            )
-
-        # --- Protein: 离散 Token，可以根据 pad_value 生成 Mask ---
-        if all_protein:
-            padded_protein = pad_sequence(
-                all_protein, batch_first=True, padding_value=self.protein_pad_value
-            )
-            batch["protein_values"] = padded_protein
-            batch["protein_attention_mask"] = padded_protein.ne(
-                self.protein_pad_value
-            ).long()
-
-        # --- Image: 固定大小，通常不需要 Mask ---
-        if all_image:
-            batch["image_values"] = torch.stack(all_image)
+        # 为模态数据生成 Mask + Padding
+        for modal in modalities.keys():
+            if modalities[modal]:
+                modal_features, modal_mask = self.processors[modal].pad(
+                    modalities[modal]
+                )
+                batch[f"{modal}_values"] = modal_features
+                batch[f"{modal}_attention_mask"] = modal_mask
 
         return batch

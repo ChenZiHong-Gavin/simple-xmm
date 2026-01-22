@@ -1,7 +1,9 @@
-from PIL import Image
 from typing import Dict, Any
+from PIL import Image
 from transformers import AutoImageProcessor
-from .base import BaseModalProcessor
+from simple_xmm.modalities.base import BaseModalProcessor
+import torch
+from typing import List, Tuple
 
 
 class ImageModalProcessor(BaseModalProcessor):
@@ -14,6 +16,7 @@ class ImageModalProcessor(BaseModalProcessor):
         """
         super().__init__(tag)
         self.image_processor = image_processor
+        self.pad_value = self.image_processor.padding_value
 
     def process(self, content: str) -> Dict[str, Any]:
         """
@@ -32,3 +35,17 @@ class ImageModalProcessor(BaseModalProcessor):
         pixel_values = inputs["pixel_values"].squeeze(0)  # (C, H, W)
 
         return {"image_values": pixel_values}
+
+    def pad(self, features: List[Dict[str, Any]]) -> Tuple[torch.Tensor, torch.Tensor]:
+        """固定尺寸特征，直接stack"""
+        image_values = [f["image_values"] for f in features]
+
+        if not image_values:
+            return torch.empty(0), torch.empty(0)
+
+        # 固定大小的特征，直接stack
+        padded_features = torch.stack(image_values)
+        # 图像通常不需要attention mask，或返回全1
+        attention_mask = torch.ones(len(image_values), dtype=torch.long)
+
+        return padded_features, attention_mask

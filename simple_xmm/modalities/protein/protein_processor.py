@@ -1,6 +1,8 @@
 from transformers import AutoTokenizer
-from typing import Dict, Any
-from .base import BaseModalProcessor
+from typing import Dict, Any, List, Tuple
+import torch
+from torch.nn.utils.rnn import pad_sequence
+from simple_xmm.modalities.base import BaseModalProcessor
 
 
 class ProteinModalProcessor(BaseModalProcessor):
@@ -12,6 +14,7 @@ class ProteinModalProcessor(BaseModalProcessor):
         """
         super().__init__(tag)
         self.tokenizer = protein_processor
+        self.pad_value = self.tokenizer.pad_token_id
 
     def process(self, content: str) -> Dict[str, Any]:
         """
@@ -33,3 +36,18 @@ class ProteinModalProcessor(BaseModalProcessor):
         return {
             "protein_values": inputs["input_ids"].squeeze(0),
         }
+
+    def pad(self, features: List[Dict[str, Any]]) -> Tuple[torch.Tensor, torch.Tensor]:
+        """离散Token的padding，可自动生成mask"""
+        protein_values = [f["protein_values"] for f in features]
+
+        if not protein_values:
+            return torch.empty(0), torch.empty(0)
+
+        padded_features = pad_sequence(
+            protein_values, batch_first=True, padding_value=self.pad_value
+        )
+        # 根据padding值自动生成mask
+        attention_mask = padded_features.ne(self.pad_value).long()
+
+        return padded_features, attention_mask
