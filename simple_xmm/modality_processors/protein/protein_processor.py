@@ -1,8 +1,8 @@
 from transformers import AutoTokenizer
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 import torch
 from torch.nn.utils.rnn import pad_sequence
-from simple_xmm.modalities.base import BaseModalProcessor
+from simple_xmm.modality_processors.base import BaseModalProcessor
 
 
 class ProteinModalProcessor(BaseModalProcessor):
@@ -51,3 +51,22 @@ class ProteinModalProcessor(BaseModalProcessor):
         attention_mask = padded_features.ne(self.pad_value).long()
 
         return padded_features, attention_mask
+
+    def encode(
+        self,
+        encoder: torch.nn.Module,
+        projector: torch.nn.Module,
+        values: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> List[torch.Tensor]:
+        """蛋白质编码：调用input_ids参数"""
+        outputs = encoder(input_ids=values, attention_mask=attention_mask)
+        features = projector(outputs.last_hidden_state)
+
+        # 对于离散token，可以直接用attention_mask裁剪
+        if attention_mask is not None:
+            return [
+                features[i, : attention_mask[i].sum()] for i in range(len(features))
+            ]
+
+        return [f for f in features]

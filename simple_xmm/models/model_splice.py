@@ -10,6 +10,7 @@ from torch.nn.utils.rnn import pad_sequence
 class ModalProjectorConfig:
     model_path: str
     projector_type: str = "mlp"
+    processor_class: str = None
 
 
 class XMMModel(nn.Module):
@@ -20,6 +21,7 @@ class XMMModel(nn.Module):
         self.llm = llm
         self.modal_encoders = nn.ModuleDict()
         self.modal_projectors = nn.ModuleDict()
+        self.modal_processors = nn.ModuleDict()
         self.modal_configs = modal_configs
 
         for modal_name, config in modal_configs.items():
@@ -34,6 +36,7 @@ class XMMModel(nn.Module):
                 nn.GELU(),
                 nn.Linear(llm.config.hidden_size, llm.config.hidden_size),
             )
+            self.modal_processors[modal_name] = config.processor_class(tag=modal_name)
 
     def encode_modality(
         self,
@@ -42,46 +45,13 @@ class XMMModel(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
     ) -> List[torch.Tensor]:
         """
-        输入: (B, Input_Seq, ...) 和 (B, Input_Seq) 的 mask
-        输出: List[Tensor]，每个 Tensor 为 (Valid_Output_Seq, Dim)，去除了 Padding
+        委托给对应的模态处理器处理输入特征，然后编码和投影。
         """
         encoder = self.modal_encoders[modal_type]
         projector = self.modal_projectors[modal_type]
+        processor = self.modal_processors[modal_type]
 
-        if modal_type == "audio":
-            outputs = encoder(input_features=values, attention_mask=attention_mask)
-        elif modal_type == "protein":
-            outputs = encoder(input_ids=values, attention_mask=attention_mask)
-        elif modal_type == "image":
-            outputs = encoder(pixel_values=values)
-        else:
-            raise ValueError(f"Unsupported modal type: {modal_type}")
-
-        last_hidden_state = outputs.last_hidden_state
-        # 投影到 LLM 维度
-        features = projector(last_hidden_state)  # (B, Out_Seq, Dim)
-
-        results = []
-        batch_size = features.shape[0]
-
-        # 计算 Input Mask 到 Output Mask 的映射
-        if attention_mask is not None:
-            input_lens = attention_mask.sum(dim=1)  # (B,)
-
-            scale = features.shape[1] / values.shape[1]
-            valid_out_lens = (input_lens * scale).long()
-            # 修正边界，防止算出 0
-            valid_out_lens = torch.clamp(valid_out_lens, min=1, max=features.shape[1])
-
-            for i in range(batch_size):
-                length = valid_out_lens[i]
-                results.append(features[i, :length, :])
-        else:
-            # 如果没有 mask (如图片)，直接全取
-            for i in range(batch_size):
-                results.append(features[i])
-
-        return results
+        return processor.encode(encoder, projector, values, attention_mask)
 
     def prepare_multimodal_inputs(
         self, input_ids, labels, attention_mask, modal_info, modal_features
@@ -146,7 +116,7 @@ class XMMModel(nn.Module):
                         )
                     )
 
-                # 跳过原文本中的占位符 token (假设占位符长度为1)
+                # 跳过原文本中的占位符 token
                 cur_pos = m_start + 1
 
             # 拼接剩余的有效文本
@@ -175,28 +145,22 @@ class XMMModel(nn.Module):
         input_ids: torch.LongTensor,
         attention_mask: torch.Tensor,
         labels: Optional[torch.LongTensor] = None,
-        image_values: Optional[torch.Tensor] = None,
-        audio_values: Optional[torch.Tensor] = None,
-        audio_attention_mask: Optional[torch.Tensor] = None,
-        protein_values: Optional[torch.Tensor] = None,
-        protein_attention_mask: Optional[torch.Tensor] = None,
         modal_info: Optional[List] = None,
-        **kwargs,
+        **modal_inputs,
     ):
         modal_features = {}
+        for modal_name, _ in self.modal_processors.items():
+            # 检查该模态是否有输入
+            values_key = f"{modal_name}_values"
+            mask_key = f"{modal_name}_attention_mask"
 
-        if image_values:
-            modal_features["image"] = self.encode_modality("image", image_values)
+            if values_key in modal_inputs and modal_inputs[values_key] is not None:
+                values = modal_inputs[values_key]
+                attention_mask = modal_inputs.get(mask_key)
 
-        if audio_values:
-            modal_features["audio"] = self.encode_modality(
-                "audio", audio_values, attention_mask=audio_attention_mask
-            )
-
-        if protein_values:
-            modal_features["protein"] = self.encode_modality(
-                "protein", protein_values, attention_mask=protein_attention_mask
-            )
+                modal_features[modal_name] = self.encode_modality(
+                    modal_name, values, attention_mask
+                )
 
         # splice
         if modal_features and modal_info:
@@ -206,18 +170,9 @@ class XMMModel(nn.Module):
         else:
             inputs_embeds = self.llm.get_input_embeddings()(input_ids)
 
-        # 防止梯度断流
-        if (
-            self.training
-            and self.llm.is_gradient_checkpointing
-            and inputs_embeds.requires_grad is False
-        ):
-            inputs_embeds.requires_grad_(True)
-
         return self.llm(
             inputs_embeds=inputs_embeds,
             labels=labels,
             attention_mask=attention_mask,
             return_dict=True,
-            **kwargs,
         )

@@ -1,8 +1,8 @@
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 import torch
 import torchaudio
 from transformers import AutoFeatureExtractor
-from simple_xmm.modalities.base import BaseModalProcessor
+from simple_xmm.modality_processors.base import BaseModalProcessor
 from torch.nn.utils.rnn import pad_sequence
 
 
@@ -97,3 +97,23 @@ class AudioModalProcessor(BaseModalProcessor):
         attention_mask = pad_sequence(audio_masks, batch_first=True, padding_value=0)
 
         return padded_features, attention_mask
+
+    def encode(
+        self,
+        encoder: torch.nn.Module,
+        projector: torch.nn.Module,
+        values: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> List[torch.Tensor]:
+        outputs = encoder(input_features=values, attention_mask=attention_mask)
+        features = projector(outputs.last_hidden_state)
+
+        if attention_mask is not None:
+            input_lens = attention_mask.sum(dim=1)
+            scale = features.shape[1] / values.shape[1]
+            valid_out_lens = (
+                (input_lens * scale).long().clamp(min=1, max=features.shape[1])
+            )
+            return [features[i, : valid_out_lens[i]] for i in range(len(features))]
+
+        return [f for f in features]

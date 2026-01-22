@@ -1,9 +1,8 @@
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple, Optional
 from PIL import Image
 from transformers import AutoImageProcessor
-from simple_xmm.modalities.base import BaseModalProcessor
 import torch
-from typing import List, Tuple
+from simple_xmm.modality_processors.base import BaseModalProcessor
 
 
 class ImageModalProcessor(BaseModalProcessor):
@@ -49,3 +48,16 @@ class ImageModalProcessor(BaseModalProcessor):
         attention_mask = torch.ones(len(image_values), dtype=torch.long)
 
         return padded_features, attention_mask
+
+    def encode(
+        self,
+        encoder: torch.nn.Module,
+        projector: torch.nn.Module,
+        values: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> List[torch.Tensor]:
+        """图像编码：调用pixel_values参数，无需mask"""
+        outputs = encoder(pixel_values=values)
+        features = projector(outputs.last_hidden_state)
+        # 图像通常没有padding，直接返回所有样本
+        return [f for f in features]
