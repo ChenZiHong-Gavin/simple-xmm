@@ -1,0 +1,27 @@
+[
+  {
+    "instruction": "What is the girl in the <image>./images/000000060623.jpg</image> doing?",
+    "input": "",
+    "output": "Blowing out a candle on a dessert."
+  },
+  {
+    "instruction": "What is the boy in the <image>./images/000000184613.jpg</image> doing?",
+    "input": "",
+    "output": "Interacting with a buffalo while holding an umbrella."
+  },
+  {
+    "instruction": "What is the boy in the <image>./images/000000318219.jpg</image> doing?",
+    "input": "",
+    "output": "Using a computer with headphones on."
+  },
+  {
+    "instruction": "What is the person in the <image>./images/000000391895.jpg</image> doing?",
+    "input": "",
+    "output": "Standing on a motorcycle looking at a mountainous landscape."
+  },
+  {
+    "instruction": "What is the person in the <image>./images/000000522418.jpg</image> doing?",
+    "input": "",
+    "output": "Cutting a large block of cheese."
+  }
+]
