@@ -3,18 +3,6 @@ model:
   llm_name_or_path: "/mnt/shared-storage-user/ai4agr-share/share/Qwen3-0.6B"
   trust_remote_code: true
 
-  modal_configs:
-    # protein:
-    #   model_path: "facebook/esm2_t12_35M_UR50D"
-    #   projector_type: "mlp"    # linear 或 mlp
-
-    # image:
-    #   model_path: "openai/clip-vit-base-patch32"
-    #   projector_type: "mlp"
-
-    # audio:
-    #   model_path: "openai/whisper-base"
-    #   projector_type: "linear"
 
 output:
   output_dir: saves/Qwen3-0.6B/full/sft
@@ -26,15 +14,6 @@ output:
 method:
   stage: sft
   finetuning_type: full
-  freeze:
-    modals:
-      - protein
-      - dna
-      - image
-    projectors:
-      - protein
-      - dna
-      - image
   deepspeed: examples/deepspeed/ds_z3_config.json
 
 data:

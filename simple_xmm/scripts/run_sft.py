@@ -12,7 +12,7 @@ from transformers import (
 )
 from torch.utils.data import random_split
 from simple_xmm.datasets.sft_dataset import XMMSeq2SeqDataset, XMMDataCollator
-from simple_xmm.models.model_splice import XMMModel, ModalProjectorConfig
+from simple_xmm.models.model_splice import XMMSpliceModel, ModalProjectorConfig
 from simple_xmm.modality_processors import MODALITY_PROCESSORS
 
 
@@ -99,7 +99,7 @@ def run_sft(config_path):
     # Special Tokens: pad_token, start_token, end_token
     set_special_tokens(tokenizer, processors)
 
-    # --- 3. Dataset & Collator ---
+    # Dataset & Collator
     logger.info("Loading dataset...")
     data_config = cfg["data"]
     train_dataset, eval_dataset = build_datasets(data_config, tokenizer, processors)
@@ -129,7 +129,7 @@ def run_sft(config_path):
             processor_class=processors[name].__class__.__name__,
         )
 
-    model = XMMModel(llm=llm, modal_configs=modal_projector_configs)
+    model = XMMSpliceModel(llm=llm, modal_configs=modal_projector_configs)
 
     # 打印可训练参数量
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

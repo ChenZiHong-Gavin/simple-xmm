@@ -13,7 +13,7 @@ class ModalProjectorConfig:
     processor_class: str = None
 
 
-class XMMModel(nn.Module):
+class XMMSpliceModel(nn.Module):
     def __init__(
         self, llm: PreTrainedModel, modal_configs: Dict[str, ModalProjectorConfig]
     ):

@@ -6,15 +6,15 @@ from simple_xmm.modality_processors.base_processor import BaseModalProcessor
 
 
 class ImageModalProcessor(BaseModalProcessor):
-    def __init__(self, tag: str = "image", image_processor: AutoImageProcessor = None):
+    def __init__(self, tag: str = "image", model_path: str = None):
         """
         Args:
             tag: 标签名称，默认 'image'
             image_processor: 预训练模型的 Image Processor，
                         用于加载对应的预处理配置（均值、方差、尺寸）。
         """
-        super().__init__(tag)
-        self.image_processor = image_processor
+        super().__init__(tag, model_path)
+        self.image_processor = AutoImageProcessor.from_pretrained(model_path)
         self.pad_value = self.image_processor.padding_value
 
     def process(self, content: str) -> Dict[str, Any]:

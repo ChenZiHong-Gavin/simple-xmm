@@ -5,7 +5,7 @@ import torch
 
 
 class BaseModalProcessor(ABC):
-    def __init__(self, tag: str):
+    def __init__(self, tag: str, model_path: str):
         """
         tag: 模态标签，如 'image', 'protein'
         """
