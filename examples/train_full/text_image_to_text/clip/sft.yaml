@@ -5,6 +5,7 @@ model:
 
   modal_configs:
     image:
+      model_type: "clip"
       model_path: "/mnt/shared-storage-user/ai4agr-share/share/clip-vit-base-patch32"
       trust_remote_code: true
 

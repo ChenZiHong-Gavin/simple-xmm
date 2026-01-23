@@ -1,12 +1,17 @@
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple
 from PIL import Image
-from transformers import AutoImageProcessor, AutoModel
+from transformers import AutoImageProcessor
 import torch
-from simple_xmm.modality_processors.base_processor import BaseModalProcessor
+from simple_xmm.modalities.base_processor import BaseModalProcessor
 
 
 class ImageModalProcessor(BaseModalProcessor):
-    def __init__(self, tag: str = "image", model_path: str = None, trust_remote_code: bool = False):
+    def __init__(
+        self,
+        tag: str = "image",
+        model_path: str = None,
+        trust_remote_code: bool = False,
+    ):
         """
         Args:
             tag: 标签名称，默认 'image'
@@ -14,7 +19,9 @@ class ImageModalProcessor(BaseModalProcessor):
                         用于加载对应的预处理配置（均值、方差、尺寸）。
         """
         super().__init__(tag)
-        self.image_processor = AutoImageProcessor.from_pretrained(model_path, trust_remote_code=trust_remote_code)
+        self.image_processor = AutoImageProcessor.from_pretrained(
+            model_path, trust_remote_code=trust_remote_code
+        )
 
     def process(self, content: str) -> Dict[str, Any]:
         """
@@ -46,25 +53,3 @@ class ImageModalProcessor(BaseModalProcessor):
         attention_mask = torch.ones(len(image_values), dtype=torch.long)
 
         return padded_features, attention_mask
-
-    def get_encoder(self):
-        return AutoModel.from_pretrained(self.model_path)
-
-    def encode(
-        self,
-        encoder: torch.nn.Module,
-        projector: torch.nn.Module,
-        values: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-    ) -> List[torch.Tensor]:
-        """图像编码：调用pixel_values参数，无需mask"""
-        outputs = encoder(pixel_values=values)
-        features = projector(outputs.last_hidden_state)
-        # 图像通常没有padding，直接返回所有样本
-        return [f for f in features]
-    
-    def get_hidden_size(
-        self,
-        encoder: torch.nn.Module
-    ) -> List[torch.Tensor]:
-        return encoder.config.text_config.hidden_size

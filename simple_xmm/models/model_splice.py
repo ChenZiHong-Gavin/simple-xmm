@@ -1,27 +1,24 @@
-from typing import Dict, List, Optional
-from dataclasses import dataclass
+from typing import List, Optional
 import torch
 import torch.nn as nn
 from transformers import PreTrainedModel
 from torch.nn.utils.rnn import pad_sequence
+from simple_xmm.modalities import MODALITY_ENCODERS
 
 
 class XMMSpliceModel(nn.Module):
-    def __init__(
-        self, llm: PreTrainedModel, modal_processors: dict
-    ):
+    def __init__(self, llm: PreTrainedModel, modal_configs: dict):
         super().__init__()
         self.llm = llm
         self.modal_encoders = nn.ModuleDict()
         self.modal_projectors = nn.ModuleDict()
-        self.modal_processors = nn.ModuleDict(modal_processors)
 
-        for modal_name, processor in modal_processors:
-            encoder = processor.get_encoder()
-            self.modal_encoders[modal_name] = encoder
-
-            enc_dim = processor.get_hidden_size(encoder)
-            self.modal_projectors[modal_name] = nn.Sequential(
+        for name, kwargs in modal_configs.items():
+            cls = MODALITY_ENCODERS[name][kwargs["modal_type"]]
+            encoder = cls(tag=name, **kwargs)
+            self.modal_encoders[name] = encoder
+            enc_dim = encoder.hidden_size
+            self.modal_projectors[name] = nn.Sequential(
                 nn.Linear(enc_dim, llm.config.hidden_size),
                 nn.GELU(),
                 nn.Linear(llm.config.hidden_size, llm.config.hidden_size),
@@ -33,14 +30,13 @@ class XMMSpliceModel(nn.Module):
         values: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
     ) -> List[torch.Tensor]:
-        """
-        委托给对应的模态处理器处理输入特征，然后编码和投影。
-        """
         encoder = self.modal_encoders[modal_type]
         projector = self.modal_projectors[modal_type]
-        processor = self.modal_processors[modal_type]
 
-        return processor.encode(encoder, projector, values, attention_mask)
+        encoded = encoder.forward(values, attention_mask)  # (B, Seq, EncDim)
+        projected = projector(encoded)  # (B, Seq, HiddenSize)
+
+        return projected
 
     def prepare_multimodal_inputs(
         self, input_ids, labels, attention_mask, modal_info, modal_features
@@ -138,7 +134,7 @@ class XMMSpliceModel(nn.Module):
         **modal_inputs,
     ):
         modal_features = {}
-        for modal_name, _ in self.modal_processors.items():
+        for modal_name, _ in self.modal_encoders.items():
             # 检查该模态是否有输入
             values_key = f"{modal_name}_values"
             mask_key = f"{modal_name}_attention_mask"

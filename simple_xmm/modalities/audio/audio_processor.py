@@ -1,20 +1,28 @@
 from typing import Dict, Any, List, Tuple, Optional
 import torch
 import torchaudio
-from transformers import AutoFeatureExtractor
-from simple_xmm.modality_processors.base_processor import BaseModalProcessor
+from transformers import AutoFeatureExtractor, AutoModel
+from simple_xmm.modalities.base_processor import BaseModalProcessor
+from simple_xmm.modalities.base_encoder import BaseModalEncoder
 from torch.nn.utils.rnn import pad_sequence
 
 
 class AudioModalProcessor(BaseModalProcessor):
-    def __init__(self, tag: str = "audio", model_path: str = None, trust_remote_code: bool = False):
+    def __init__(
+        self,
+        tag: str = "audio",
+        model_path: str = None,
+        trust_remote_code: bool = False,
+    ):
         """
         Args:
             tag: 标签，默认 'audio'
-            audio_processor: 音频编码器的特征提取器 (如 AutoFeatureExtractor)
+            model_path: 音频编码器的特征提取器 (如 AutoFeatureExtractor)
         """
         super().__init__(tag)
-        self.feature_extractor = AutoFeatureExtractor.from_pretrained(model_path, trust_remote_code=trust_remote_code)
+        self.feature_extractor = AutoFeatureExtractor.from_pretrained(
+            model_path, trust_remote_code=trust_remote_code
+        )
         self.target_sampling_rate = self.feature_extractor.sampling_rate
         self.pad_value = self.feature_extractor.padding_value
 
@@ -96,18 +104,50 @@ class AudioModalProcessor(BaseModalProcessor):
 
         return padded_features, attention_mask
 
-    def encode(
+
+class AudioModalEncoder(BaseModalEncoder):
+    def __init__(
         self,
-        encoder: torch.nn.Module,
-        projector: torch.nn.Module,
+        tag: str = "audio",
+        model_path: str = None,
+        trust_remote_code: bool = False,
+    ):
+        super().__init__(tag)
+        self.encoder = AutoModel.from_pretrained(
+            model_path, trust_remote_code=trust_remote_code
+        )
+
+    def forward(
+        self,
+        values: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """音频编码"""
+        # 区分不同模型的输入参数名称
+        # 一般 wav2vec/hubert 使用 input_values, whisper 使用 input_features
+        # 简单起见，尝试检测参数
+        kwargs = {}
+        if "input_features" in self.encoder.forward.__code__.co_varnames:
+            kwargs["input_features"] = values
+        else:
+            kwargs["input_values"] = values
+
+        if attention_mask is not None:
+            kwargs["attention_mask"] = attention_mask
+
+        outputs = self.encoder(**kwargs)
+        return outputs.last_hidden_state
+
+    def post_process(
+        self,
+        features: torch.Tensor,
         values: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
     ) -> List[torch.Tensor]:
-        outputs = encoder(input_features=values, attention_mask=attention_mask)
-        features = projector(outputs.last_hidden_state)
-
         if attention_mask is not None:
             input_lens = attention_mask.sum(dim=1)
+            # values shape: (B, Seq) or (B, Seq, Freq)
+            # input_lens based on dim 1
             scale = features.shape[1] / values.shape[1]
             valid_out_lens = (
                 (input_lens * scale).long().clamp(min=1, max=features.shape[1])
@@ -115,3 +155,7 @@ class AudioModalProcessor(BaseModalProcessor):
             return [features[i, : valid_out_lens[i]] for i in range(len(features))]
 
         return [f for f in features]
+
+    @property
+    def hidden_size(self) -> int:
+        return self.encoder.config.hidden_size

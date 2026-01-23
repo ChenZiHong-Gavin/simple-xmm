@@ -1,19 +1,27 @@
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModel
 from typing import Dict, Any, List, Tuple, Optional
 import torch
 from torch.nn.utils.rnn import pad_sequence
-from simple_xmm.modality_processors.base_processor import BaseModalProcessor
+from simple_xmm.modalities.base_processor import BaseModalProcessor
+from simple_xmm.modalities.base_encoder import BaseModalEncoder
 
 
 class ProteinModalProcessor(BaseModalProcessor):
-    def __init__(self, tag: str = "protein", model_path: str = None, trust_remote_code: bool = False):
+    def __init__(
+        self,
+        tag: str = "protein",
+        model_path: str = None,
+        trust_remote_code: bool = False,
+    ):
         """
         Args:
             tag: 标签，默认 'protein'
             model_path: ESM 模型路径，用于加载对应的 Tokenizer
         """
         super().__init__(tag)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=trust_remote_code)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_path, trust_remote_code=trust_remote_code
+        )
         self.pad_value = self.tokenizer.pad_token_id
 
     def process(self, content: str) -> Dict[str, Any]:
@@ -52,21 +60,41 @@ class ProteinModalProcessor(BaseModalProcessor):
 
         return padded_features, attention_mask
 
-    def encode(
+
+class ProteinModalEncoder(BaseModalEncoder):
+    def __init__(
         self,
-        encoder: torch.nn.Module,
-        projector: torch.nn.Module,
+        tag: str = "protein",
+        model_path: str = None,
+        trust_remote_code: bool = False,
+    ):
+        super().__init__(tag)
+        self.encoder = AutoModel.from_pretrained(
+            model_path, trust_remote_code=trust_remote_code
+        )
+
+    def forward(
+        self,
+        values: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """蛋白质编码：调用input_ids参数"""
+        outputs = self.encoder(input_ids=values, attention_mask=attention_mask)
+        # return last_hidden_state
+        return outputs.last_hidden_state
+
+    def post_process(
+        self,
+        features: torch.Tensor,
         values: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
     ) -> List[torch.Tensor]:
-        """蛋白质编码：调用input_ids参数"""
-        outputs = encoder(input_ids=values, attention_mask=attention_mask)
-        features = projector(outputs.last_hidden_state)
-
-        # 对于离散token，可以直接用attention_mask裁剪
         if attention_mask is not None:
             return [
                 features[i, : attention_mask[i].sum()] for i in range(len(features))
             ]
-
         return [f for f in features]
+
+    @property
+    def hidden_size(self) -> int:
+        return self.encoder.config.hidden_size

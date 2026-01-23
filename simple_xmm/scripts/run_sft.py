@@ -13,7 +13,7 @@ from transformers import (
 from torch.utils.data import random_split
 from simple_xmm.datasets.sft_dataset import XMMSeq2SeqDataset, XMMDataCollator
 from simple_xmm.models.model_splice import XMMSpliceModel
-from simple_xmm.modality_processors import MODALITY_PROCESSORS
+from simple_xmm.modalities import MODALITY_PROCESSORS
 
 
 logging.basicConfig(level=logging.INFO)
@@ -29,7 +29,7 @@ def build_processors(modal_configs: Dict):
                 "Modality %s not implemented in processor map, skipping.", name
             )
             continue
-        cls = MODALITY_PROCESSORS[name]
+        cls = MODALITY_PROCESSORS[name][kwargs["modal_type"]]
         processors[name] = cls(tag=name, **kwargs)
 
     return processors
@@ -89,7 +89,9 @@ def run_sft(config_path):
     # Text Tokenizer
     llm_path = cfg["model"]["llm_name_or_path"]
     trust_remote_code = cfg["model"]["trust_remote_code"]
-    tokenizer = AutoTokenizer.from_pretrained(llm_path, trust_remote_code=trust_remote_code)
+    tokenizer = AutoTokenizer.from_pretrained(
+        llm_path, trust_remote_code=trust_remote_code
+    )
 
     modal_configs = cfg["model"]["modal_configs"] or {}
 
@@ -120,7 +122,7 @@ def run_sft(config_path):
     # Resize embedding
     llm.resize_token_embeddings(len(tokenizer))
 
-    model = XMMSpliceModel(llm=llm, modal_processors=processors)
+    model = XMMSpliceModel(llm=llm)
 
     # 打印可训练参数量
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

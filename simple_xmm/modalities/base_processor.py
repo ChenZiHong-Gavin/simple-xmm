@@ -31,7 +31,5 @@ class BaseModalProcessor(ABC):
     def get_placeholder(self) -> str:
         return self.pad_token
 
-
     def get_special_tokens(self) -> List[str]:
         return [self.pad_token, self.start_token, self.end_token]
-
