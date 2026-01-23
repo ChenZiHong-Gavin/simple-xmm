@@ -14,7 +14,9 @@ class XMMSpliceModel(nn.Module):
         self.modal_projectors = nn.ModuleDict()
 
         for name, kwargs in modal_configs.items():
-            cls = MODALITY_ENCODERS[name][kwargs["modal_type"]]
+            kwargs = kwargs.copy()
+            model_type = kwargs.pop("model_type")
+            cls = MODALITY_ENCODERS[name][model_type]
             encoder = cls(tag=name, **kwargs)
             self.modal_encoders[name] = encoder
             enc_dim = encoder.hidden_size
@@ -49,8 +51,6 @@ class XMMSpliceModel(nn.Module):
         modal_counters = {k: 0 for k in modal_features.keys()}
 
         for i in range(len(input_ids)):
-            # 1. 确定当前样本的有效文本长度（去除 Padding）
-            # 假设 tokenizer padding side 是 right，且 pad_token_id 对应的 mask 是 0
             valid_len = attention_mask[i].sum().item()
 
             cur_embeds = inputs_embeds[i, :valid_len]  # 只取有效部分
@@ -135,16 +135,15 @@ class XMMSpliceModel(nn.Module):
     ):
         modal_features = {}
         for modal_name, _ in self.modal_encoders.items():
-            # 检查该模态是否有输入
             values_key = f"{modal_name}_values"
             mask_key = f"{modal_name}_attention_mask"
 
             if values_key in modal_inputs and modal_inputs[values_key] is not None:
                 values = modal_inputs[values_key]
-                attention_mask = modal_inputs.get(mask_key)
-
+                modal_attention_mask = modal_inputs.get(mask_key)
+                
                 modal_features[modal_name] = self.encode_modality(
-                    modal_name, values, attention_mask
+                    modal_name, values, modal_attention_mask
                 )
 
         # splice
@@ -152,6 +151,8 @@ class XMMSpliceModel(nn.Module):
             inputs_embeds, labels, attention_mask = self.prepare_multimodal_inputs(
                 input_ids, labels, attention_mask, modal_info, modal_features
             )
+            print("inputs_embeds", inputs_embeds.shape)
+            print("attention_mask", attention_mask.shape)
         else:
             inputs_embeds = self.llm.get_input_embeddings()(input_ids)
 

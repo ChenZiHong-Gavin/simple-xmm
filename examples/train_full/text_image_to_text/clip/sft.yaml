@@ -42,8 +42,8 @@ data:
 train:
   # 基础参数
   num_train_epochs: 3.0
-  per_device_train_batch_size: 2
-  gradient_accumulation_steps: 8
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 1
 
   # 优化器
   learning_rate: 2e-5
@@ -62,6 +62,6 @@ train:
   resume_from_checkpoint: null
 
   # 评估
-  per_device_eval_batch_size: 2
+  per_device_eval_batch_size: 1
   eval_strategy: epoch
   # eval_steps: 500

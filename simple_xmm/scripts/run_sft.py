@@ -29,7 +29,9 @@ def build_processors(modal_configs: Dict):
                 "Modality %s not implemented in processor map, skipping.", name
             )
             continue
-        cls = MODALITY_PROCESSORS[name][kwargs["modal_type"]]
+        kwargs = kwargs.copy()
+        model_type = kwargs.pop("model_type")
+        cls = MODALITY_PROCESSORS[name][model_type]
         processors[name] = cls(tag=name, **kwargs)
 
     return processors
@@ -122,7 +124,7 @@ def run_sft(config_path):
     # Resize embedding
     llm.resize_token_embeddings(len(tokenizer))
 
-    model = XMMSpliceModel(llm=llm)
+    model = XMMSpliceModel(llm=llm, modal_configs=modal_configs)
 
     # 打印可训练参数量
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
