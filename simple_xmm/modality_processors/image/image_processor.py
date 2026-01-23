@@ -1,21 +1,20 @@
 from typing import Dict, Any, List, Tuple, Optional
 from PIL import Image
-from transformers import AutoImageProcessor
+from transformers import AutoImageProcessor, AutoModel
 import torch
 from simple_xmm.modality_processors.base_processor import BaseModalProcessor
 
 
 class ImageModalProcessor(BaseModalProcessor):
-    def __init__(self, tag: str = "image", model_path: str = None):
+    def __init__(self, tag: str = "image", model_path: str = None, trust_remote_code: bool = False):
         """
         Args:
             tag: 标签名称，默认 'image'
             image_processor: 预训练模型的 Image Processor，
                         用于加载对应的预处理配置（均值、方差、尺寸）。
         """
-        super().__init__(tag, model_path)
-        self.image_processor = AutoImageProcessor.from_pretrained(model_path)
-        self.pad_value = self.image_processor.padding_value
+        super().__init__(tag)
+        self.image_processor = AutoImageProcessor.from_pretrained(model_path, trust_remote_code=trust_remote_code)
 
     def process(self, content: str) -> Dict[str, Any]:
         """
@@ -36,7 +35,6 @@ class ImageModalProcessor(BaseModalProcessor):
         return {"image_values": pixel_values}
 
     def pad(self, features: List[Dict[str, Any]]) -> Tuple[torch.Tensor, torch.Tensor]:
-        """固定尺寸特征，直接stack"""
         image_values = [f["image_values"] for f in features]
 
         if not image_values:
@@ -44,10 +42,13 @@ class ImageModalProcessor(BaseModalProcessor):
 
         # 固定大小的特征，直接stack
         padded_features = torch.stack(image_values)
-        # 图像通常不需要attention mask，或返回全1
+        # 图像通常不需要attention mask，返回全1
         attention_mask = torch.ones(len(image_values), dtype=torch.long)
 
         return padded_features, attention_mask
+
+    def get_encoder(self):
+        return AutoModel.from_pretrained(self.model_path)
 
     def encode(
         self,
@@ -61,3 +62,9 @@ class ImageModalProcessor(BaseModalProcessor):
         features = projector(outputs.last_hidden_state)
         # 图像通常没有padding，直接返回所有样本
         return [f for f in features]
+    
+    def get_hidden_size(
+        self,
+        encoder: torch.nn.Module
+    ) -> List[torch.Tensor]:
+        return encoder.config.text_config.hidden_size

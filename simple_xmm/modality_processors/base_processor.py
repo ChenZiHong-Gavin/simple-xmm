@@ -5,7 +5,7 @@ import torch
 
 
 class BaseModalProcessor(ABC):
-    def __init__(self, tag: str, model_path: str):
+    def __init__(self, tag: str):
         """
         tag: 模态标签，如 'image', 'protein'
         """
@@ -31,5 +31,7 @@ class BaseModalProcessor(ABC):
     def get_placeholder(self) -> str:
         return self.pad_token
 
+
     def get_special_tokens(self) -> List[str]:
         return [self.pad_token, self.start_token, self.end_token]
+

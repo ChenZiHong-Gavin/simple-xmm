@@ -6,14 +6,14 @@ from simple_xmm.modality_processors.base_processor import BaseModalProcessor
 
 
 class ProteinModalProcessor(BaseModalProcessor):
-    def __init__(self, tag: str = "protein", model_path: str = None):
+    def __init__(self, tag: str = "protein", model_path: str = None, trust_remote_code: bool = False):
         """
         Args:
             tag: 标签，默认 'protein'
             model_path: ESM 模型路径，用于加载对应的 Tokenizer
         """
-        super().__init__(tag, model_path)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+        super().__init__(tag)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=trust_remote_code)
         self.pad_value = self.tokenizer.pad_token_id
 
     def process(self, content: str) -> Dict[str, Any]:

@@ -7,14 +7,14 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 class AudioModalProcessor(BaseModalProcessor):
-    def __init__(self, tag: str = "audio", model_path: str = None):
+    def __init__(self, tag: str = "audio", model_path: str = None, trust_remote_code: bool = False):
         """
         Args:
             tag: 标签，默认 'audio'
             audio_processor: 音频编码器的特征提取器 (如 AutoFeatureExtractor)
         """
-        super().__init__(tag, model_path)
-        self.feature_extractor = AutoFeatureExtractor.from_pretrained(model_path)
+        super().__init__(tag)
+        self.feature_extractor = AutoFeatureExtractor.from_pretrained(model_path, trust_remote_code=trust_remote_code)
         self.target_sampling_rate = self.feature_extractor.sampling_rate
         self.pad_value = self.feature_extractor.padding_value
 

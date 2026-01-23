@@ -2,41 +2,30 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 import torch
 import torch.nn as nn
-from transformers import PreTrainedModel, AutoModel
+from transformers import PreTrainedModel
 from torch.nn.utils.rnn import pad_sequence
-
-
-@dataclass
-class ModalProjectorConfig:
-    model_path: str
-    projector_type: str = "mlp"
-    processor_class: str = None
 
 
 class XMMSpliceModel(nn.Module):
     def __init__(
-        self, llm: PreTrainedModel, modal_configs: Dict[str, ModalProjectorConfig]
+        self, llm: PreTrainedModel, modal_processors: dict
     ):
         super().__init__()
         self.llm = llm
         self.modal_encoders = nn.ModuleDict()
         self.modal_projectors = nn.ModuleDict()
-        self.modal_processors = nn.ModuleDict()
-        self.modal_configs = modal_configs
+        self.modal_processors = nn.ModuleDict(modal_processors)
 
-        for modal_name, config in modal_configs.items():
-            encoder = AutoModel.from_pretrained(config.model_path)
+        for modal_name, processor in modal_processors:
+            encoder = processor.get_encoder()
             self.modal_encoders[modal_name] = encoder
 
-            enc_dim = getattr(
-                encoder.config, "hidden_size", getattr(encoder.config, "d_model")
-            )
+            enc_dim = processor.get_hidden_size(encoder)
             self.modal_projectors[modal_name] = nn.Sequential(
                 nn.Linear(enc_dim, llm.config.hidden_size),
                 nn.GELU(),
                 nn.Linear(llm.config.hidden_size, llm.config.hidden_size),
             )
-            self.modal_processors[modal_name] = config.processor_class(tag=modal_name)
 
     def encode_modality(
         self,

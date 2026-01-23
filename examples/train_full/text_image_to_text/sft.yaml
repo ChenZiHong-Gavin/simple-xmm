@@ -6,7 +6,7 @@ model:
   modal_configs:
     image:
       model_path: "/mnt/shared-storage-user/ai4agr-share/share/clip-vit-base-patch32"
-      projector_type: "mlp"
+      trust_remote_code: true
 
 output:
   output_dir: saves/Qwen3-0.6B/full/sft
@@ -30,7 +30,7 @@ method:
   deepspeed: examples/deepspeed/ds_z3_config.json
 
 data:
-  path: "data/alpaca_demo.json"
+  path: "data/text_image_to_text_demo.json"
   template: "Alpaca"
   cutoff_len: 2048
   max_samples: 1000

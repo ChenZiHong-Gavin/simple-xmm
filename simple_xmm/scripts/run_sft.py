@@ -12,7 +12,7 @@ from transformers import (
 )
 from torch.utils.data import random_split
 from simple_xmm.datasets.sft_dataset import XMMSeq2SeqDataset, XMMDataCollator
-from simple_xmm.models.model_splice import XMMSpliceModel, ModalProjectorConfig
+from simple_xmm.models.model_splice import XMMSpliceModel
 from simple_xmm.modality_processors import MODALITY_PROCESSORS
 
 
@@ -23,14 +23,14 @@ logger = logging.getLogger(__name__)
 def build_processors(modal_configs: Dict):
     processors = {}
 
-    for name, _ in modal_configs.items():
+    for name, kwargs in modal_configs.items():
         if name not in MODALITY_PROCESSORS:
             logger.warning(
                 "Modality %s not implemented in processor map, skipping.", name
             )
             continue
         cls = MODALITY_PROCESSORS[name]
-        processors[name] = cls(tag=name)
+        processors[name] = cls(tag=name, **kwargs)
 
     return processors
 
@@ -88,7 +88,8 @@ def run_sft(config_path):
 
     # Text Tokenizer
     llm_path = cfg["model"]["llm_name_or_path"]
-    tokenizer = AutoTokenizer.from_pretrained(llm_path, trust_remote_code=True)
+    trust_remote_code = cfg["model"]["trust_remote_code"]
+    tokenizer = AutoTokenizer.from_pretrained(llm_path, trust_remote_code=trust_remote_code)
 
     modal_configs = cfg["model"]["modal_configs"] or {}
 
@@ -113,23 +114,13 @@ def run_sft(config_path):
     logger.info("Initializing XMM Model...")
     llm = AutoModelForCausalLM.from_pretrained(
         llm_path,
-        trust_remote_code=True,
+        trust_remote_code=trust_remote_code,
         torch_dtype=torch.bfloat16 if cfg["train"]["bf16"] else torch.float16,
     )
-
-    # Resize embedding 因为添加了 special tokens
+    # Resize embedding
     llm.resize_token_embeddings(len(tokenizer))
 
-    # 构建 Modal Configs 对象
-    modal_projector_configs = {}
-    for name, conf in modal_configs.items():
-        modal_projector_configs[name] = ModalProjectorConfig(
-            model_path=conf["model_path"],
-            projector_type=conf.get("projector_type", "mlp"),
-            processor_class=processors[name].__class__.__name__,
-        )
-
-    model = XMMSpliceModel(llm=llm, modal_configs=modal_projector_configs)
+    model = XMMSpliceModel(llm=llm, modal_processors=processors)
 
     # 打印可训练参数量
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
