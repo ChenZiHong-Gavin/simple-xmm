@@ -12,12 +12,6 @@ class ImageModalProcessor(BaseModalProcessor):
         model_path: str = None,
         trust_remote_code: bool = False,
     ):
-        """
-        Args:
-            tag: 标签名称，默认 'image'
-            image_processor: 预训练模型的 Image Processor，
-                        用于加载对应的预处理配置（均值、方差、尺寸）。
-        """
         super().__init__(tag)
         self.image_processor = AutoImageProcessor.from_pretrained(
             model_path, trust_remote_code=trust_remote_code
@@ -25,7 +19,7 @@ class ImageModalProcessor(BaseModalProcessor):
 
     def process(self, content: str) -> Dict[str, Any]:
         """
-        content: 正则提取出的图片路径，例如 "/data/coco/train2017/000000.jpg"
+        content: 图片路径，例如 "/data/coco/train2017/000000.jpg"
         """
         image_path = content.strip()
 

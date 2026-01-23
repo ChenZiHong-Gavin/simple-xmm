@@ -1,0 +1,17 @@
+[
+  {
+    "instruction": "What did the speaker say in <audio>./data/audios/000000649752.wav</audio>?",
+    "input": "",
+    "output": "I AM CONVINCED OF WHAT I SAY SAID THE COUNT"
+  },
+  {
+    "instruction": "What did the speaker say in <audio>./data/audios/000000928853.wav</audio>?",
+    "input": "",
+    "output": "NOW WHAT HAVE YOU TO SAY CYNTHIA SPRAGUE"
+  },
+  {
+    "instruction": "What did the speaker say in <audio>./data/audios/000000367356.wav</audio>?",
+    "input": "",
+    "output": "I THOUGHT WE WERE STUMPED AGAIN WHEN I FIRST SAW THAT PICTURE BUT IT'S BEEN OF SOME USE AFTER ALL"
+  }
+]
