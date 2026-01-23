@@ -95,7 +95,7 @@ def run_sft(config_path):
         llm_path, trust_remote_code=trust_remote_code
     )
 
-    modal_configs = cfg["model"]["modal_configs"] or {}
+    modal_configs = cfg["model"]["modal_configs"] if "modal_configs" in cfg["model"] else {}
 
     # Processors
     logger.info("Setting up processors...")
