@@ -1,4 +1,7 @@
-# Simple-XMM
+<div align="center">
+<a href="https://github.com/your-repo/simple-xmm">
+<img height=350 alt="Simple-XMM" src="https://capsule-render.vercel.app/api?type=waving&color=ffdd7a&height=300&section=header&text=Simple-XMM&fontSize=70&fontColor=0f0000&animation=fadeIn&fontAlignY=38&desc=A%20Simple%20Multimodal%20LLM%20Framework&descAlignY=60&descAlign=50"></img></a>
+</div>
 
 Simple-XMM 是一个简易且可扩展的多模态大语言模型（MLLM）框架，旨在简化多模态模型的训练和微调流程。它采用了模块化的设计，将模态处理器（Processor）和编码器（Encoder）解耦，支持图像、音频、蛋白质等多种模态。
 
