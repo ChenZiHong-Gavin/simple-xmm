@@ -10,6 +10,7 @@ class AudioModalEncoder(BaseModalEncoder):
         tag: str = "audio",
         model_path: str = None,
         trust_remote_code: bool = False,
+        **kwargs,
     ):
         super().__init__(tag)
         self.encoder = AutoModel.from_pretrained(

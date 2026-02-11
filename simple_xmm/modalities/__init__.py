@@ -76,7 +76,7 @@ _ENCODERS_MAPPING = {
         "whisper": (".audio.whisper_audio_encoder", "AudioModalEncoder"),
     },
     "protein": {
-        "esm": (".protein.esm_protein_processor", "ProteinModalEncoder"),
+        "esm": (".protein.esm_protein_encoder", "ProteinModalEncoder"),
     },
 }
 

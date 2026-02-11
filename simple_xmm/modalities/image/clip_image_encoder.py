@@ -10,6 +10,7 @@ class ImageModalEncoder(BaseModalEncoder):
         tag: str = "image",
         model_path: str = None,
         trust_remote_code: bool = False,
+        **kwargs,
     ):
         super().__init__(tag)
         self.model_path = model_path
