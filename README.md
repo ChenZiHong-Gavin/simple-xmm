@@ -8,9 +8,14 @@ Simple-XMM 是一个简易且可扩展的多模态大语言模型（MLLM）框�
 ## ✨ 特性
 
 - **多模态支持**：
-  - 🖼️ **图像 (Image)**: 集成 CLIP 模型。
-  - 🎙️ **音频 (Audio)**: 集成 Whisper 模型。
-  - 🧬 **蛋白质 (Protein)**: 集成 ESM 模型。
+
+  | 模态 (Modality) | 模型 (Model) | 描述 (Description) |
+  | :--- | :--- | :--- |
+  | 🖼️ **图像 (Image)** | CLIP | 集成 CLIP 模型 |
+  | 🎙️ **音频 (Audio)** | Whisper | 集成 Whisper 模型 |
+  | 🧬 **蛋白质 (Protein)** | ESM | 集成 ESM 模型 |
+  | 🧬 **DNA** | Nucleotide Transformer (NT) | 集成 Nucleotide Transformer (NT) 模型 |
+  | 🧪 **RNA** | RNA-FM | 集成 RNA-FM 模型 |
 - **模块化架构**：轻松扩展新的模态，只需实现对应的 `Encoder` 和 `Processor`。
 - **SFT 训练**：内置 Supervised Fine-Tuning (SFT) 流程，支持多模态数据的混合训练。
 - **配置灵活**：基于 OmegaConf 的 YAML 配置管理。
@@ -49,6 +54,12 @@ python simple_xmm/train.py --config examples/train_full/ti2t/clip/sft.yaml
 
 # 音频模态训练示例
 python simple_xmm/train.py --config examples/train_full/ta2t/sft.yaml
+
+# DNA 模态训练示例
+python simple_xmm/train.py --config examples/train_full/td2t/nt/sft.yaml
+
+# RNA 模态训练示例
+python simple_xmm/train.py --config examples/train_full/tr2t/fm/sft.yaml
 ```
 
 ## 📂 项目结构
@@ -56,7 +67,7 @@ python simple_xmm/train.py --config examples/train_full/ta2t/sft.yaml
 ```
 simple_xmm/
 ├── datasets/       # 数据集处理
-├── modalities/     # 模态实现 (Audio, Image, Protein)
+├── modalities/     # 模态实现 (Audio, Image, Protein, DNA, RNA)
 ├── models/         # 模型架构 (Splice Model)
 ├── scripts/        # 核心逻辑脚本 (run_sft)
 ├── configs/        # 配置模板
