@@ -27,7 +27,7 @@ class AudioModalEncoder(BaseModalEncoder):
         else:
             kwargs["input_values"] = values
 
-        if attention_mask:
+        if attention_mask is not None:
             kwargs["attention_mask"] = attention_mask
 
         outputs = self.encoder(**kwargs)
@@ -40,14 +40,22 @@ class AudioModalEncoder(BaseModalEncoder):
         attention_mask: Optional[torch.Tensor] = None,
     ) -> List[torch.Tensor]:
         if attention_mask is not None:
+            # values shape: (B, Seq, Freq)
+            # attention_mask shape: (B, Seq)
             input_lens = attention_mask.sum(dim=1)
-            # values shape: (B, Seq) or (B, Seq, Freq)
-            # input_lens based on dim 1
-            scale = features.shape[1] / values.shape[1]
-            valid_out_lens = (
-                (input_lens * scale).long().clamp(min=1, max=features.shape[1])
-            )
-            return [features[i, : valid_out_lens[i]] for i in range(len(features))]
+
+            # Calculate output lengths based on downsampling factor
+            # Whisper encoder has 2 conv layers with stride 1 (stem) but let's check ratio dynamically
+            in_seq_len = values.shape[1]
+            out_seq_len = features.shape[1]
+
+            if in_seq_len > 0:
+                scale = out_seq_len / in_seq_len
+                valid_out_lens = (input_lens * scale).long()
+                # Clamp to ensure we don't exceed actual output length
+                valid_out_lens = valid_out_lens.clamp(max=out_seq_len)
+
+                return [features[i, : valid_out_lens[i]] for i in range(len(features))]
 
         return [f for f in features]
 

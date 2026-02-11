@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from transformers import CLIPVisionModel
 import torch
 from simple_xmm.modalities.base_encoder import BaseModalEncoder
@@ -24,6 +24,21 @@ class ImageModalEncoder(BaseModalEncoder):
         outputs = self.image_encoder(pixel_values=values)
         features = outputs.last_hidden_state
         return features
+
+    def post_process(
+        self,
+        features: torch.Tensor,
+        values: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> List[torch.Tensor]:
+        # Image features are usually fixed length (patches + cls)
+        # If attention_mask is provided (which is all 1s usually), we can use it
+        if attention_mask is not None:
+            return [
+                features[i, : int(attention_mask[i].sum().item())]
+                for i in range(len(features))
+            ]
+        return [f for f in features]
 
     @property
     def hidden_size(self) -> int:

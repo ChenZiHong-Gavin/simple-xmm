@@ -3,7 +3,7 @@ model:
   trust_remote_code: true
 
   modal_configs:
-    image:
+    protein:
       model_type: "esm"
       model_path: "facebook/esm2_t33_650M_UR50D"
       trust_remote_code: true

@@ -38,7 +38,7 @@ class XMMSpliceModel(nn.Module):
         encoded = encoder.forward(values, attention_mask)  # (B, Seq, EncDim)
         projected = projector(encoded)  # (B, Seq, HiddenSize)
 
-        return projected
+        return encoder.post_process(projected, values, attention_mask)
 
     def prepare_multimodal_inputs(
         self, input_ids, labels, attention_mask, modal_info, modal_features
@@ -141,7 +141,7 @@ class XMMSpliceModel(nn.Module):
             if values_key in modal_inputs and modal_inputs[values_key] is not None:
                 values = modal_inputs[values_key]
                 modal_attention_mask = modal_inputs.get(mask_key)
-                
+
                 modal_features[modal_name] = self.encode_modality(
                     modal_name, values, modal_attention_mask
                 )
@@ -151,8 +151,6 @@ class XMMSpliceModel(nn.Module):
             inputs_embeds, labels, attention_mask = self.prepare_multimodal_inputs(
                 input_ids, labels, attention_mask, modal_info, modal_features
             )
-            print("inputs_embeds", inputs_embeds.shape)
-            print("attention_mask", attention_mask.shape)
         else:
             inputs_embeds = self.llm.get_input_embeddings()(input_ids)
 
