@@ -1,0 +1,17 @@
+[
+  {
+    "instruction": "Identify the potential function of this RNA sequence: <rna>AUGCCCGGGAAAUUUUAG</rna>",
+    "input": "",
+    "output": "This sequence starts with a start codon (AUG) and ends with a stop codon (UAG), suggesting it could be a coding sequence for a small peptide."
+  },
+  {
+    "instruction": "Is the following RNA sequence likely to form a stable hairpin structure? <rna>GCGCGCAAAAAAGCGCGC</rna>",
+    "input": "",
+    "output": "Yes, the GC-rich regions at both ends (GCGCGC) are complementary and can form a stem, while the 'AAAAAA' sequence can form a loop."
+  },
+  {
+    "instruction": "What type of RNA is this likely to be? <rna>GGAUCG...</rna>",
+    "input": "",
+    "output": "Without more context or a longer sequence, it is difficult to classify definitively, but it consists of standard RNA nucleotides."
+  }
+]

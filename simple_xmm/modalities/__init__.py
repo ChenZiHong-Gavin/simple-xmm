@@ -69,6 +69,9 @@ _PROCESSORS_MAPPING = {
     "dna": {
         "nt": (".dna.nt_dna_processor", "DNAModalProcessor"),
     },
+    "rna": {
+        "fm": (".rna.rna_fm_processor", "RNAModalProcessor"),
+    },
 }
 
 _ENCODERS_MAPPING = {
@@ -83,6 +86,9 @@ _ENCODERS_MAPPING = {
     },
     "dna": {
         "nt": (".dna.nt_dna_encoder", "DNAModalEncoder"),
+    },
+    "rna": {
+        "fm": (".rna.rna_fm_encoder", "RNAModalEncoder"),
     },
 }
 

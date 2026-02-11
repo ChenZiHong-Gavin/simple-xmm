@@ -1,0 +1,55 @@
+model:
+  llm_name_or_path: "Qwen/Qwen2-7B-Instruct"
+  trust_remote_code: true
+  projector_type: mlp # choices: [linear, mlp, qformer]
+
+  modal_configs:
+    rna:
+      model_type: "fm"
+      model_path: "yangheng/PlantRNA-FM"
+      trust_remote_code: true
+      max_length: 1024
+
+output:
+  output_dir: saves/Qwen2-7B/full/sft_rna
+  logging_steps: 10
+  save_steps: 500
+  save_only_model: false
+  report_to: none  # choices: [none, wandb, tensorboard, swanlab, mlflow]
+
+method:
+  stage: sft
+  finetuning_type: full
+  deepspeed: examples/deepspeed/ds_z3_config.json
+
+data:
+  path: "data/tr2t_demo.json"
+  template: "Alpaca"
+  cutoff_len: 2048
+  max_samples: 1000
+  val_size: 0.1
+
+train:
+  # 基础参数
+  num_train_epochs: 3.0
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 1
+  dataloader_num_workers: 4
+
+  # 优化器
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.03
+  lr_scheduler_type: "cosine"
+
+  # 混合精度
+  bf16: true
+  fp16: false
+
+  # 检查点
+  resume_from_checkpoint: null
+
+  # 评估
+  per_device_eval_batch_size: 1
+  eval_strategy: epoch
+  # eval_steps: 500
