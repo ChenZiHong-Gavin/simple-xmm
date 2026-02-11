@@ -66,6 +66,9 @@ _PROCESSORS_MAPPING = {
     "protein": {
         "esm": (".protein.esm_protein_processor", "ProteinModalProcessor"),
     },
+    "dna": {
+        "nt": (".dna.nt_dna_processor", "DNAModalProcessor"),
+    },
 }
 
 _ENCODERS_MAPPING = {
@@ -77,6 +80,9 @@ _ENCODERS_MAPPING = {
     },
     "protein": {
         "esm": (".protein.esm_protein_encoder", "ProteinModalEncoder"),
+    },
+    "dna": {
+        "nt": (".dna.nt_dna_encoder", "DNAModalEncoder"),
     },
 }
 

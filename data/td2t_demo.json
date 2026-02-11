@@ -1,0 +1,17 @@
+[
+  {
+    "instruction": "Identify the promoter region in the following DNA sequence: <dna>ATCGATCGATCGATCGGGGGTTTTTCCCCAAAAAATCGATCG</dna>",
+    "input": "",
+    "output": "The promoter region is likely located near the TATA box sequence 'TTTTT' within the provided sequence."
+  },
+  {
+    "instruction": "What is the function of this DNA segment? <dna>ATGGCCTAA</dna>",
+    "input": "",
+    "output": "This sequence contains a start codon (ATG) and a stop codon (TAA), suggesting it might be a very short open reading frame."
+  },
+  {
+    "instruction": "Classify the following DNA sequence: <dna>CCCGGGCCCGGG</dna>",
+    "input": "",
+    "output": "This is a GC-rich sequence, often found in CpG islands."
+  }
+]
