@@ -12,17 +12,20 @@ class ProteinModalProcessor(BaseModalProcessor):
         tag: str = "protein",
         model_path: str = None,
         trust_remote_code: bool = False,
+        max_length: int = 1024,
     ):
         """
         Args:
             tag: 标签，默认 'protein'
             model_path: ESM 模型路径，用于加载对应的 Tokenizer
+            max_length: 最大序列长度，默认 1024
         """
         super().__init__(tag)
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_path, trust_remote_code=trust_remote_code
         )
         self.pad_value = self.tokenizer.pad_token_id
+        self.max_length = max_length
 
     def process(self, content: str) -> Dict[str, Any]:
         """
@@ -38,7 +41,7 @@ class ProteinModalProcessor(BaseModalProcessor):
             return_tensors="pt",
             add_special_tokens=True,
             truncation=True,  # 自动截断超过 max_length 的序列
-            max_length=1024,
+            max_length=self.max_length,
         )  # shape: (1, seq_len)
 
         return {
