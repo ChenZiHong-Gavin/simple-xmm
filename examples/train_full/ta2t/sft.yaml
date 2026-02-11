@@ -2,6 +2,7 @@ model:
   # llm_name_or_path: "Qwen/Qwen2-7B-Instruct"
   llm_name_or_path: "/mnt/shared-storage-user/ai4agr-share/share/Qwen3-0.6B"
   trust_remote_code: true
+  projector_type: mlp # choices: [linear, mlp, qformer]
 
   modal_configs:
     audio:

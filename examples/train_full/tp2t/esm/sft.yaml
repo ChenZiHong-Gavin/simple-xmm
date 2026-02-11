@@ -1,6 +1,7 @@
 model:
   llm_name_or_path: "Qwen/Qwen2-7B-Instruct"
   trust_remote_code: true
+  projector_type: mlp # choices: [linear, mlp, qformer]
 
   modal_configs:
     protein:
