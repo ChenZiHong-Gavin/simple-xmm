@@ -3,28 +3,19 @@ import torch
 import torch.nn as nn
 from transformers import PreTrainedModel
 from torch.nn.utils.rnn import pad_sequence
-from simple_xmm.modalities import MODALITY_ENCODERS
 
 
-class XMMSpliceModel(nn.Module):
-    def __init__(self, llm: PreTrainedModel, modal_configs: dict):
+class XMMModelBase(nn.Module):
+    """
+    XMM 模型的基类，实现了通用的多模态输入处理和前向传播逻辑。
+    子类需要实现 `encode_modality` 方法以及初始化特定的 Encoder 和 Projector。
+    """
+
+    def __init__(self, llm: PreTrainedModel):
         super().__init__()
         self.llm = llm
         self.modal_encoders = nn.ModuleDict()
-        self.modal_projectors = nn.ModuleDict()
-
-        for name, kwargs in modal_configs.items():
-            kwargs = kwargs.copy()
-            model_type = kwargs.pop("model_type")
-            cls = MODALITY_ENCODERS[name][model_type]
-            encoder = cls(tag=name, **kwargs)
-            self.modal_encoders[name] = encoder
-            enc_dim = encoder.hidden_size
-            self.modal_projectors[name] = nn.Sequential(
-                nn.Linear(enc_dim, llm.config.hidden_size),
-                nn.GELU(),
-                nn.Linear(llm.config.hidden_size, llm.config.hidden_size),
-            )
+        # 子类可以根据需要添加 self.modal_projectors 或其他组件
 
     def encode_modality(
         self,
@@ -32,17 +23,18 @@ class XMMSpliceModel(nn.Module):
         values: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
     ) -> List[torch.Tensor]:
-        encoder = self.modal_encoders[modal_type]
-        projector = self.modal_projectors[modal_type]
-
-        encoded = encoder.forward(values, attention_mask)  # (B, Seq, EncDim)
-        projected = projector(encoded)  # (B, Seq, HiddenSize)
-
-        return encoder.post_process(projected, values, attention_mask)
+        """
+        对单个模态进行编码和投影。
+        子类必须实现此方法。
+        """
+        raise NotImplementedError
 
     def prepare_multimodal_inputs(
         self, input_ids, labels, attention_mask, modal_info, modal_features
     ):
+        """
+        将文本 token 和模态特征进行拼接，构造最终送入 LLM 的输入。
+        """
         new_inputs_embeds = []
         new_labels = []
         new_attention_masks = []
@@ -134,7 +126,8 @@ class XMMSpliceModel(nn.Module):
         **modal_inputs,
     ):
         modal_features = {}
-        for modal_name, _ in self.modal_encoders.items():
+        # 遍历已注册的 modal_encoders
+        for modal_name in self.modal_encoders.keys():
             values_key = f"{modal_name}_values"
             mask_key = f"{modal_name}_attention_mask"
 

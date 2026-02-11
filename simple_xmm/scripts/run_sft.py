@@ -12,7 +12,9 @@ from transformers import (
 )
 from torch.utils.data import random_split
 from simple_xmm.datasets.sft_dataset import XMMSeq2SeqDataset, XMMDataCollator
-from simple_xmm.models.model_splice import XMMSpliceModel
+from simple_xmm.models.model_linear import XMMLinearProjectorModel
+from simple_xmm.models.model_mlp import XMMMlpProjectorModel
+from simple_xmm.models.model_qformer import XMMQFormerProjectorModel
 from simple_xmm.modalities import MODALITY_PROCESSORS
 
 
@@ -126,7 +128,15 @@ def run_sft(config_path):
     # Resize embedding
     llm.resize_token_embeddings(len(tokenizer))
 
-    model = XMMSpliceModel(llm=llm, modal_configs=modal_configs)
+    projector_type = cfg["model"].get("projector_type", "mlp")
+    if projector_type == "linear":
+        model_cls = XMMLinearProjectorModel
+    elif projector_type == "qformer":
+        model_cls = XMMQFormerProjectorModel
+    else:
+        model_cls = XMMMlpProjectorModel
+
+    model = model_cls(llm=llm, modal_configs=modal_configs)
 
     # 打印可训练参数量
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
