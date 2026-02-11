@@ -37,6 +37,7 @@ class XMMSeq2SeqDataset(Dataset):
         split: str = "train",
         data_files: str = None,
         max_samples: int = None,
+        cutoff_len: int = None,
     ):
         """
         Args:
@@ -47,12 +48,13 @@ class XMMSeq2SeqDataset(Dataset):
             split: 数据集划分（如"train"）
             data_files: 指定具体的数据文件（如"train.parquet"）
             max_samples: 读取样本数量
-            modals: 模态
+            cutoff_len: 最大序列长度（包含模态特征展开后的长度）
         """
         super().__init__()
         assert path, "Path must be provided"
         assert template, "Template must be provided"
         self.path = path
+        self.cutoff_len = cutoff_len
         self.tokenizer = tokenizer
         ds_path = path
         ds_files = data_files
@@ -141,9 +143,38 @@ class XMMSeq2SeqDataset(Dataset):
         # 多模态处理
         prompt_ids, modal_info = self._process_prompt(prompt_text)
         resp_ids = self.tokenizer.encode(response_text, add_special_tokens=False)
-        input_ids = torch.tensor(prompt_ids + resp_ids, dtype=torch.long)
+
+        full_ids = prompt_ids + resp_ids
+
+        # 截断逻辑
+        if self.cutoff_len:
+            token_lengths = [1] * len(full_ids)
+            for m in modal_info:
+                idx = m["start"]
+                if idx < len(token_lengths):
+                    proc = self.processors[m["type"]]
+                    token_lengths[idx] = proc.get_feature_length(m["content"])
+
+            cur_len = 0
+            trunc_idx = len(full_ids)
+            for i, length in enumerate(token_lengths):
+                if cur_len + length > self.cutoff_len:
+                    trunc_idx = i
+                    break
+                cur_len += length
+
+            full_ids = full_ids[:trunc_idx]
+            modal_info = [m for m in modal_info if m["start"] < trunc_idx]
+
+        input_ids = torch.tensor(full_ids, dtype=torch.long)
         labels = input_ids.clone()
-        labels[: len(prompt_ids)] = IGNORE_INDEX
+
+        # 计算新的 prompt 长度用于 mask labels
+        prompt_len = len(prompt_ids)
+        if len(input_ids) < prompt_len:
+            prompt_len = len(input_ids)
+
+        labels[:prompt_len] = IGNORE_INDEX
 
         return {"input_ids": input_ids, "labels": labels, "modal_info": modal_info}
 

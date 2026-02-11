@@ -45,6 +45,9 @@ class ProteinModalProcessor(BaseModalProcessor):
             "protein_values": inputs["input_ids"].squeeze(0),
         }
 
+    def get_feature_length(self, features: Dict[str, Any]) -> int:
+        return features["protein_values"].shape[0]
+
     def pad(self, features: List[Dict[str, Any]]) -> Tuple[torch.Tensor, torch.Tensor]:
         """离散Token的padding，可自动生成mask"""
         protein_values = [f["protein_values"] for f in features]

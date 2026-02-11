@@ -33,3 +33,9 @@ class BaseModalProcessor(ABC):
 
     def get_special_tokens(self) -> List[str]:
         return [self.pad_token, self.start_token, self.end_token]
+
+    def get_feature_length(self, features: Dict[str, Any]) -> int:
+        """
+        返回该模态特征在进入 LLM 之前展开后的 token 长度。
+        """
+        return 0

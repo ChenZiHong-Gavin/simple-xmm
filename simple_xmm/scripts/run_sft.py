@@ -56,7 +56,7 @@ def build_datasets(data_config: Dict, tokenizer, processors):
         tokenizer=tokenizer,
         processors=processors,
         max_samples=data_config.get("max_samples", None),
-        # cutoff_len=data_config.get("cutoff_len", 2048),
+        cutoff_len=data_config.get("cutoff_len", 2048),
     )
 
     val_size = data_config.get("val_size", 0.0)
@@ -95,7 +95,9 @@ def run_sft(config_path):
         llm_path, trust_remote_code=trust_remote_code
     )
 
-    modal_configs = cfg["model"]["modal_configs"] if "modal_configs" in cfg["model"] else {}
+    modal_configs = (
+        cfg["model"]["modal_configs"] if "modal_configs" in cfg["model"] else {}
+    )
 
     # Processors
     logger.info("Setting up processors...")

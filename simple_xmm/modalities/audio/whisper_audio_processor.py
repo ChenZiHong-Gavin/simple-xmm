@@ -65,6 +65,12 @@ class AudioModalProcessor(BaseModalProcessor):
 
         return result
 
+    def get_feature_length(self, features: Dict[str, Any]) -> int:
+        # Whisper encoder downsamples by 2
+        if "audio_lens" in features:
+            return (features["audio_lens"] + 1) // 2
+        return 0
+
     def pad(self, features: List[Dict[str, Any]]) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         对音频特征进行padding和mask生成
