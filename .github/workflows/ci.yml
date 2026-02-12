@@ -27,4 +27,4 @@ jobs:
 
       - name: Lint check
         run: |
-          flake8 src/
+          flake8 simple_xmm/
