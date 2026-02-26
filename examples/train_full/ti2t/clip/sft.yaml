@@ -16,11 +16,6 @@ output:
   save_only_model: false
   report_to: none  # choices: [none, wandb, tensorboard, swanlab, mlflow]
 
-method:
-  stage: sft
-  finetuning_type: full
-  deepspeed: examples/deepspeed/ds_z3_config.json
-
 data:
   path: "data/ti2t_demo.json"
   template: "Alpaca"
@@ -29,6 +24,7 @@ data:
   val_size: 0.1
 
 train:
+  deepspeed: examples/deepspeed/ds_z3_config.json
   # 基础参数
   num_train_epochs: 3.0
   per_device_train_batch_size: 1

@@ -26,6 +26,7 @@ data:
   val_size: 0.05
 
 train:
+  deepspeed: examples/deepspeed/ds_z3_config.json
   output_dir: "./output/pt_protein_checkpoints"
   per_device_train_batch_size: 4
   per_device_eval_batch_size: 4

@@ -26,6 +26,7 @@ data:
   val_size: 0.05         # 验证集比例
 
 train:
+  deepspeed: examples/deepspeed/ds_z3_config.json
   # 基础参数
   output_dir: "./output/pt_checkpoints"
   per_device_train_batch_size: 4
