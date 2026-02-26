@@ -3,6 +3,13 @@ model:
   trust_remote_code: true
   projector_type: mlp # choices: [linear, mlp, qformer]
 
+  # # Configure modules to freeze
+  # freeze_modules:
+  #   - "llm"               # Freeze the LLM backbone
+  #   - "protein"           # Freeze both encoder and projector for protein
+  #   - "image.encoder"     # Freeze only the image encoder
+  #   - "audio.projector"   # Freeze only the audio projector
+
   modal_configs:
     protein:
       model_type: "esm"
