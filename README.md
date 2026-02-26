@@ -50,16 +50,16 @@ pip install -r requirements.txt
 
 ```bash
 # 图像模态训练示例
-python simple_xmm/train.py --config examples/train_full/ti2t/clip/sft.yaml
+python simple_xmm/train.py --config examples/train_full/ti2t/clip/sft.yaml --stage sft
 
 # 音频模态训练示例
-python simple_xmm/train.py --config examples/train_full/ta2t/sft.yaml
+python simple_xmm/train.py --config examples/train_full/ta2t/sft.yaml --stage sft
 
 # DNA 模态训练示例
-python simple_xmm/train.py --config examples/train_full/td2t/nt/sft.yaml
+python simple_xmm/train.py --config examples/train_full/td2t/nt/sft.yaml --stage sft
 
 # RNA 模态训练示例
-python simple_xmm/train.py --config examples/train_full/tr2t/fm/sft.yaml
+python simple_xmm/train.py --config examples/train_full/tr2t/fm/sft.yaml --stage sft
 ```
 
 ## 📂 项目结构
