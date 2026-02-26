@@ -1,0 +1,38 @@
+# Pre-Training Configuration for Text Modality (LLM Pre-training)
+
+model:
+  llm_name_or_path: "Qwen/Qwen2-7B-Instruct"
+  trust_remote_code: true
+  # No projector or modal_configs for pure text
+
+  # For pure text pre-training, we usually don't freeze anything, or maybe freeze some layers.
+  # But assuming this is continued pre-training:
+  freeze_modules: []
+
+data:
+  path: "data/t2t_pt_demo.json" # Adjust this path to your PT dataset
+  # dataset_name: "coco"
+  # split: "train"
+  max_samples: 1000
+  cutoff_len: 2048
+  val_size: 0.05
+
+train:
+  output_dir: "./output/pt_text_checkpoints"
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2e-5 # Lower LR for LLM fine-tuning/pre-training
+  weight_decay: 0.05
+  num_train_epochs: 1
+  logging_steps: 10
+  save_steps: 100
+  eval_steps: 100
+  save_total_limit: 2
+  bf16: true
+  dataloader_num_workers: 4
+  remove_unused_columns: false
+  report_to: "tensorboard"
+
+output:
+  overwrite_output_dir: true

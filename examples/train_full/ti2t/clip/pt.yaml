@@ -1,0 +1,52 @@
+# Pre-Training Configuration
+
+model:
+  llm_name_or_path: "Qwen/Qwen2.5-0.5B-Instruct"  # 替换为你的基础模型路径
+  trust_remote_code: true
+  projector_type: "mlp"  # 可选: linear, mlp, qformer
+
+  modal_configs:
+    image:
+      model_type: "clip"
+      model_name_or_path: "openai/clip-vit-base-patch32" # 替换为你的CLIP模型路径
+      select_layer: -2
+
+  # 冻结参数配置 (Pre-training 通常冻结 LLM 和 Encoder，只训练 Projector)
+  freeze_modules:
+    - "llm"            # 冻结语言模型
+    - "image.encoder"  # 冻结图像编码器
+    # - "all"          # 冻结所有参数 (不建议，至少要训练 projector)
+
+data:
+  path: "data/pt_data.json" # 数据集路径
+  # dataset_name: "coco" # 如果使用 HuggingFace 数据集，填写数据集名称
+  # split: "train"       # 数据集 split
+  max_samples: 1000      # 调试用，正式训练可设为 null
+  cutoff_len: 2048       # 最大序列长度
+  val_size: 0.05         # 验证集比例
+
+train:
+  # 基础参数
+  output_dir: "./output/pt_checkpoints"
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 1e-3    # Pre-training projector 通常使用较大的学习率
+  weight_decay: 0.05
+  num_train_epochs: 1
+  logging_steps: 10
+  save_steps: 100
+  eval_steps: 100
+  save_total_limit: 2
+
+  # 混合精度
+  bf16: true            # 是否使用 bf16
+  dataloader_num_workers: 4
+  remove_unused_columns: false # 必须为 false，否则自定义字段会被移除
+  report_to: "tensorboard"
+
+  # 分布式训练 (如果需要 DeepSpeed，请确保 TrainingArguments 支持或在此处添加 deepspeed 路径)
+  # deepspeed: "examples/deepspeed/ds_z2_config.json"
+
+output:
+  overwrite_output_dir: true

@@ -1,0 +1,46 @@
+# Pre-Training Configuration for Protein Modality
+
+model:
+  llm_name_or_path: "Qwen/Qwen2-7B-Instruct"
+  trust_remote_code: true
+  projector_type: "mlp"
+
+  modal_configs:
+    protein:
+      model_type: "esm"
+      model_name_or_path: "facebook/esm2_t33_650M_UR50D"
+      trust_remote_code: true
+      max_length: 1024
+
+  # Freeze modules for Pre-training
+  freeze_modules:
+    - "llm"
+    - "protein.encoder"
+
+data:
+  path: "data/tp2t_pt_demo.json" # Adjust this path to your PT dataset
+  # dataset_name: "coco"
+  # split: "train"
+  max_samples: 1000
+  cutoff_len: 2048
+  val_size: 0.05
+
+train:
+  output_dir: "./output/pt_protein_checkpoints"
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 1e-3
+  weight_decay: 0.05
+  num_train_epochs: 1
+  logging_steps: 10
+  save_steps: 100
+  eval_steps: 100
+  save_total_limit: 2
+  bf16: true
+  dataloader_num_workers: 4
+  remove_unused_columns: false
+  report_to: "tensorboard"
+
+output:
+  overwrite_output_dir: true

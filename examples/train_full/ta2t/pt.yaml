@@ -1,0 +1,45 @@
+# Pre-Training Configuration for Audio Modality
+
+model:
+  llm_name_or_path: "/mnt/shared-storage-user/ai4agr-share/share/Qwen3-0.6B" # Using path from sft.yaml
+  trust_remote_code: true
+  projector_type: "mlp"
+
+  modal_configs:
+    audio:
+      model_type: "whisper"
+      model_name_or_path: "openai/whisper-small"
+      trust_remote_code: true
+
+  # Freeze modules for Pre-training
+  freeze_modules:
+    - "llm"
+    - "audio.encoder"
+
+data:
+  path: "data/ta2t_pt_demo.json" # Adjust this path to your PT dataset
+  # dataset_name: "coco"
+  # split: "train"
+  max_samples: 1000
+  cutoff_len: 2048
+  val_size: 0.05
+
+train:
+  output_dir: "./output/pt_audio_checkpoints"
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 1e-3
+  weight_decay: 0.05
+  num_train_epochs: 1
+  logging_steps: 10
+  save_steps: 100
+  eval_steps: 100
+  save_total_limit: 2
+  bf16: true
+  dataloader_num_workers: 4
+  remove_unused_columns: false
+  report_to: "tensorboard"
+
+output:
+  overwrite_output_dir: true
