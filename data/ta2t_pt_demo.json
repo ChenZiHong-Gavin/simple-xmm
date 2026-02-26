@@ -1,0 +1,8 @@
+[
+  {
+    "text": "This audio clip <audio>./data/audio/audio_sample_1.wav</audio> contains speech about machine learning."
+  },
+  {
+    "text": "In this recording <audio>./data/audio/audio_sample_2.wav</audio>, a bird is singing."
+  }
+]

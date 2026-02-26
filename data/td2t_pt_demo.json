@@ -1,0 +1,11 @@
+[
+  {
+    "text": "The promoter region in the DNA sequence <dna>ATCGATCGATCGATCGGGGGTTTTTCCCCAAAAAATCGATCG</dna> is likely located near the TATA box sequence 'TTTTT' within the provided sequence."
+  },
+  {
+    "text": "The DNA segment <dna>ATGGCCTAA</dna> contains a start codon (ATG) and a stop codon (TAA), suggesting it might be a very short open reading frame."
+  },
+  {
+    "text": "The DNA sequence <dna>CCCGGGCCCGGG</dna> is a GC-rich sequence, often found in CpG islands."
+  }
+]

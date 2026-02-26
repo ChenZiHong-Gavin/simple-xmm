@@ -18,7 +18,7 @@ model:
     # - "all"          # 冻结所有参数 (不建议，至少要训练 projector)
 
 data:
-  path: "data/pt_data.json" # 数据集路径
+  path: "data/ti2t_pt_demo.json" # 数据集路径
   # dataset_name: "coco" # 如果使用 HuggingFace 数据集，填写数据集名称
   # split: "train"       # 数据集 split
   max_samples: 1000      # 调试用，正式训练可设为 null

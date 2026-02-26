@@ -18,7 +18,7 @@ model:
     - "dna.encoder"
 
 data:
-  path: "data/td2t_pt_demo.json" # Adjust this path to your PT dataset
+  path: "data/td2t_pt_demo.json"
   # dataset_name: "coco"
   # split: "train"
   max_samples: 1000

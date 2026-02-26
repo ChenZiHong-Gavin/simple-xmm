@@ -10,7 +10,7 @@ model:
   freeze_modules: []
 
 data:
-  path: "data/t2t_pt_demo.json" # Adjust this path to your PT dataset
+  path: "data/t2t_pt_demo.json"
   # dataset_name: "coco"
   # split: "train"
   max_samples: 1000
