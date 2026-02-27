@@ -208,6 +208,7 @@ class XMMDataCollator:
             "input_ids": input_ids_padded,
             "labels": labels_padded,
             "attention_mask": attention_mask,
+            "modal_info": [f["modal_info"] for f in features],
         }
 
         modalities = {}
