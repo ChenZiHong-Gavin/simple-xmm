@@ -3,6 +3,7 @@ import logging
 from typing import Dict
 import torch
 from omegaconf import OmegaConf
+from torch.utils.data import random_split
 
 from transformers import (
     AutoTokenizer,
@@ -11,8 +12,7 @@ from transformers import (
     Trainer,
     set_seed,
 )
-from torch.utils.data import random_split
-from simple_xmm.datasets.sft_dataset import XMMDataCollator
+from simple_xmm.datasets.sft_dataset import XMMSeq2SeqDataset, XMMDataCollator
 from simple_xmm.datasets.pt_dataset import XMMPtDataset
 from simple_xmm.models.model_linear import XMMLinearProjectorModel
 from simple_xmm.models.model_mlp import XMMMlpProjectorModel
@@ -46,47 +46,6 @@ def set_special_tokens(tokenizer, processors):
     for p in processors.values():
         special_tokens += p.get_special_tokens()
     tokenizer.add_tokens(special_tokens, special_tokens=True)
-
-
-def build_datasets(data_config: Dict, tokenizer, processors):
-    """
-    Builds training and validation datasets based on the configuration for Pre-Training.
-    """
-    logger.info(f"Loading data from {data_config['path']}...")
-
-    full_dataset = XMMPtDataset(
-        path=data_config["path"],
-        tokenizer=tokenizer,
-        processors=processors,
-        max_samples=data_config.get("max_samples", None),
-        cutoff_len=data_config.get("cutoff_len", 2048),
-        dataset_name=data_config.get("dataset_name", None),
-        split=data_config.get("split", "train"),
-        data_files=data_config.get("data_files", None),
-    )
-
-    val_size = data_config.get("val_size", 0.0)
-
-    if val_size > 0:
-        dataset_len = len(full_dataset)
-        val_len = int(dataset_len * val_size)
-        train_len = dataset_len - val_len
-
-        generator = torch.Generator()
-        train_dataset, eval_dataset = random_split(
-            full_dataset, [train_len, val_len], generator=generator
-        )
-        logger.info(
-            f"Data split: {train_len} training samples, {val_len} validation samples."
-        )
-    else:
-        train_dataset = full_dataset
-        eval_dataset = None
-        logger.info(
-            f"No validation split defined. Using all {len(full_dataset)} samples for training."
-        )
-
-    return train_dataset, eval_dataset
 
 
 def freeze_parameters(model, freeze_modules):
@@ -169,10 +128,65 @@ def freeze_parameters(model, freeze_modules):
                         )
 
 
-def run_pt(config_path):
+def split_dataset(full_dataset, val_size):
+    if val_size > 0:
+        dataset_len = len(full_dataset)
+        val_len = int(dataset_len * val_size)
+        train_len = dataset_len - val_len
+
+        generator = torch.Generator()
+        train_dataset, eval_dataset = random_split(
+            full_dataset, [train_len, val_len], generator=generator
+        )
+        logger.info(
+            f"Data split: {train_len} training samples, {val_len} validation samples."
+        )
+    else:
+        train_dataset = full_dataset
+        eval_dataset = None
+        logger.info(
+            f"No validation split defined. Using all {len(full_dataset)} samples for training."
+        )
+    return train_dataset, eval_dataset
+
+
+def build_datasets(data_config: Dict, tokenizer, processors, stage):
+    """
+    Builds training and validation datasets based on the configuration and stage.
+    """
+    logger.info(f"Loading data from {data_config['path']} for {stage}...")
+
+    if stage == "pt":
+        full_dataset = XMMPtDataset(
+            path=data_config["path"],
+            tokenizer=tokenizer,
+            processors=processors,
+            max_samples=data_config.get("max_samples", None),
+            cutoff_len=data_config.get("cutoff_len", 2048),
+            dataset_name=data_config.get("dataset_name", None),
+            split=data_config.get("split", "train"),
+            data_files=data_config.get("data_files", None),
+        )
+    elif stage == "sft":
+        full_dataset = XMMSeq2SeqDataset(
+            path=data_config["path"],
+            template=data_config["template"],
+            tokenizer=tokenizer,
+            processors=processors,
+            max_samples=data_config.get("max_samples", None),
+            cutoff_len=data_config.get("cutoff_len", 2048),
+        )
+    else:
+        raise ValueError(f"Unknown stage: {stage}")
+
+    val_size = data_config.get("val_size", 0.0)
+    return split_dataset(full_dataset, val_size)
+
+
+def run_train(config_path, stage):
     cfg = OmegaConf.load(config_path)
 
-    local_rank = int(os.environ.get('LOCAL_RANK', -1))
+    local_rank = int(os.environ.get("LOCAL_RANK", -1))
     is_main_process = local_rank in [-1, 0]
 
     set_seed(42)
@@ -198,7 +212,9 @@ def run_pt(config_path):
     # Dataset & Collator
     logger.info("Loading dataset...")
     data_config = cfg["data"]
-    train_dataset, eval_dataset = build_datasets(data_config, tokenizer, processors)
+    train_dataset, eval_dataset = build_datasets(
+        data_config, tokenizer, processors, stage
+    )
 
     collator = XMMDataCollator(
         tokenizer=tokenizer,
@@ -250,15 +266,23 @@ def run_pt(config_path):
         tokenizer=tokenizer,
     )
 
-    logger.info("Starting pre-training...")
+    logger.info(f"Starting {stage} training...")
     trainer.train()
     trainer.save_model()
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
 
-    if len(sys.argv) > 1:
-        run_pt(sys.argv[1])
-    else:
-        print("Usage: python run_pt.py <config_path>")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config_path", type=str, help="Path to yaml config")
+    parser.add_argument(
+        "--stage",
+        type=str,
+        required=True,
+        choices=["sft", "pt"],
+        help="Stage: sft or pt",
+    )
+    args = parser.parse_args()
+
+    run_train(args.config_path, args.stage)

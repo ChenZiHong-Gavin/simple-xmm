@@ -1,7 +1,6 @@
 import argparse
 import logging
-from simple_xmm.scripts.run_sft import run_sft
-from simple_xmm.scripts.run_pt import run_pt
+from simple_xmm.scripts.run_train import run_train
 
 
 def main():
@@ -23,10 +22,7 @@ def main():
         level=logging.INFO,
     )
 
-    if args.stage == "sft":
-        run_sft(config_path=args.config)
-    elif args.stage == "pt":
-        run_pt(config_path=args.config)
+    run_train(config_path=args.config, stage=args.stage)
 
 
 if __name__ == "__main__":
