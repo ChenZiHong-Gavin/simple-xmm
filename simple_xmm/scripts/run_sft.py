@@ -1,3 +1,4 @@
+import os
 import logging
 from typing import Dict
 import torch
@@ -168,6 +169,9 @@ def freeze_parameters(model, freeze_modules):
 def run_sft(config_path):
     cfg = OmegaConf.load(config_path)
 
+    local_rank = int(os.environ.get('LOCAL_RANK', -1))
+    is_main_process = local_rank in [-1, 0]
+
     set_seed(42)
 
     # Text Tokenizer
@@ -227,6 +231,11 @@ def run_sft(config_path):
     logger.info(f"Trainable Parameters: {trainable_params / 1e6:.2f} M")
 
     training_args_dict = {**cfg["train"], **cfg["output"]}
+
+    if not is_main_process:
+        training_args_dict["report_to"] = []
+        training_args_dict["logging_strategy"] = "no"
+
     training_args = TrainingArguments(**training_args_dict, save_safetensors=False)
 
     trainer = Trainer(

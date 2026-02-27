@@ -6,3 +6,4 @@ transformers
 Pillow
 accelerate
 omegaconf
+deepspeed
