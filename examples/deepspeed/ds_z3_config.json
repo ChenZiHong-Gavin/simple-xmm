@@ -1,7 +1,7 @@
 {
-  "train_batch_size": 128,
-  "train_micro_batch_size_per_gpu": 16,
-  "gradient_accumulation_steps": null,
+  "train_batch_size": "auto",
+  "train_micro_batch_size_per_gpu": "auto",
+  "gradient_accumulation_steps": "auto",
   "steps_per_print": 10,
   "zero_optimization": {
       "stage": 3,
@@ -30,14 +30,9 @@
       "tp_gather_partition_size": 8
   },
   "fp16": {
-    "enabled": false,
-    "loss_scale": 0,
-    "loss_scale_window": 1000,
-    "initial_scale_power": 16,
-    "hysteresis": 2,
-    "min_loss_scale": 1
+    "enabled": false
   },
   "bf16": {
-    "enabled": false
+    "enabled": "auto"
   }
 }
