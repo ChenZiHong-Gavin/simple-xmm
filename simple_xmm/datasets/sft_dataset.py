@@ -1,13 +1,11 @@
 from typing import Dict, Any, TypedDict, List
 from dataclasses import dataclass
-import re
 import torch
-from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoTokenizer
-from datasets import load_dataset
 from simple_xmm.utils.registry import get_template_class
 from simple_xmm.modalities.base_processor import BaseModalProcessor
+from simple_xmm.datasets.base_dataset import XMMBaseDataset
 
 
 IGNORE_INDEX = -100
@@ -26,7 +24,7 @@ class XMMSeq2SeqBatch(TypedDict, total=True):
     modal_info: List[List[Dict[str, Any]]] = []
 
 
-class XMMSeq2SeqDataset(Dataset):
+class XMMSeq2SeqDataset(XMMBaseDataset):
     def __init__(
         self,
         path: str,
@@ -50,92 +48,21 @@ class XMMSeq2SeqDataset(Dataset):
             max_samples: 读取样本数量
             cutoff_len: 最大序列长度（包含模态特征展开后的长度）
         """
-        super().__init__()
         assert path, "Path must be provided"
         assert template, "Template must be provided"
-        self.path = path
-        self.cutoff_len = cutoff_len
-        self.tokenizer = tokenizer
-        ds_path = path
-        ds_files = data_files
-        if (
-            ds_files is None
-            and isinstance(path, str)
-            and re.search(r"\.(json|jsonl|parquet|csv)$", path)
-        ):
-            ds_files = path
-            ext = path.rsplit(".", 1)[-1]
 
-            format_mapping = {
-                "json": "json",
-                "jsonl": "json",
-                "parquet": "parquet", 
-                "csv": "csv"
-            }
-            ds_path = format_mapping.get(ext, ext)
-        self.raw_data = load_dataset(
-            ds_path, name=dataset_name, split=split, data_files=ds_files
+        super().__init__(
+            path=path,
+            tokenizer=tokenizer,
+            processors=processors,
+            dataset_name=dataset_name,
+            split=split,
+            data_files=data_files,
+            max_samples=max_samples,
+            cutoff_len=cutoff_len,
         )
-        if max_samples:
-            self.raw_data = self.raw_data.select(
-                range(min(int(max_samples), len(self.raw_data)))
-            )
+
         self.formatter = get_template_class(template)
-
-        self.processors = processors
-        for proc in self.processors.values():
-            if self.tokenizer.convert_tokens_to_ids(proc.pad_token) is None:
-                raise ValueError(f"Pad token {proc.pad_token} not found in tokenizer.")
-
-    def _process_prompt(self, text: str):
-        """分离模态标签并插入对应padding"""
-        input_ids = []
-        modal_info: List[Dict[str, Any]] = []
-
-        matches = []
-        for proc in self.processors.values():
-            for m in proc.pattern.finditer(text):
-                matches.append(
-                    {
-                        "processor": proc,
-                        "start": m.start(),
-                        "end": m.end(),
-                        "content": m.group(1),
-                    }
-                )
-        matches.sort(key=lambda x: x["start"])
-
-        curr_pos = 0
-        for m in matches:
-            if m["start"] > curr_pos:
-                text_part = text[curr_pos : m["start"]]
-                input_ids.extend(
-                    self.tokenizer.encode(text_part, add_special_tokens=False)
-                )
-            proc = m["processor"]
-            processed_content = proc.process(m["content"])
-
-            pad_id = self.tokenizer.convert_tokens_to_ids(proc.pad_token)
-
-            modal_info.append(
-                {
-                    "type": proc.tag,
-                    "start": len(input_ids),
-                    "raw": m["content"],
-                    "content": processed_content,
-                }
-            )
-
-            # 插入占位符
-            input_ids.append(pad_id)
-            curr_pos = m["end"]
-
-        if curr_pos < len(text):
-            input_ids.extend(
-                self.tokenizer.encode(text[curr_pos:], add_special_tokens=False)
-            )
-
-        return input_ids, modal_info
 
     def preprocess(self, raw_sample: dict[str, Any]) -> XMMSeq2SeqSample:
         messages, _ = self.formatter.format_supervised_sample(raw_sample)
@@ -155,24 +82,7 @@ class XMMSeq2SeqDataset(Dataset):
         full_ids = prompt_ids + resp_ids
 
         # 截断逻辑
-        if self.cutoff_len:
-            token_lengths = [1] * len(full_ids)
-            for m in modal_info:
-                idx = m["start"]
-                if idx < len(token_lengths):
-                    proc = self.processors[m["type"]]
-                    token_lengths[idx] = proc.get_feature_length(m["content"])
-
-            cur_len = 0
-            trunc_idx = len(full_ids)
-            for i, length in enumerate(token_lengths):
-                if cur_len + length > self.cutoff_len:
-                    trunc_idx = i
-                    break
-                cur_len += length
-
-            full_ids = full_ids[:trunc_idx]
-            modal_info = [m for m in modal_info if m["start"] < trunc_idx]
+        full_ids, modal_info = self._truncate(full_ids, modal_info)
 
         input_ids = torch.tensor(full_ids, dtype=torch.long)
         labels = input_ids.clone()
@@ -189,10 +99,6 @@ class XMMSeq2SeqDataset(Dataset):
     def __getitem__(self, index: int) -> XMMSeq2SeqSample:
         """Get a tokenized data sample by index."""
         return self.preprocess(self.raw_data[index])
-
-    def __len__(self) -> int:
-        """Get the number of samples in the dataset."""
-        return len(self.raw_data)
 
 
 @dataclass
@@ -230,11 +136,9 @@ class XMMDataCollator:
                 modalities[m_type].append(m_data)
 
         # 为模态数据生成 Mask + Padding
-        for modal in modalities.keys():
-            if modalities[modal]:
-                modal_features, modal_mask = self.processors[modal].pad(
-                    modalities[modal]
-                )
+        for modal, modal_data in modalities.items():
+            if modal_data:
+                modal_features, modal_mask = self.processors[modal].pad(modal_data)
                 batch[f"{modal}_values"] = modal_features
                 batch[f"{modal}_attention_mask"] = modal_mask
 
