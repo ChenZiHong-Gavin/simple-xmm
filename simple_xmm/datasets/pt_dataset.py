@@ -41,10 +41,19 @@ class XMMPtDataset(Dataset):
         if (
             ds_files is None
             and isinstance(path, str)
-            and re.search(r"\.(json|parquet|csv)$", path)
+            and re.search(r"\.(json|jsonl|parquet|csv)$", path)
         ):
             ds_files = path
-            ds_path = path.rsplit(".", 1)[-1]
+            ext = path.rsplit(".", 1)[-1]
+
+            format_mapping = {
+                "json": "json",
+                "jsonl": "json",
+                "parquet": "parquet", 
+                "csv": "csv"
+            }
+            ds_path = format_mapping.get(ext, ext)
+            
 
         self.raw_data = load_dataset(
             ds_path, name=dataset_name, split=split, data_files=ds_files

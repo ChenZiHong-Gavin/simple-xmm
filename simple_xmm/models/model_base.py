@@ -106,7 +106,6 @@ class XMMModelBase(nn.Module):
             new_labels.append(torch.cat(parts_labels, dim=0))
             new_attention_masks.append(torch.cat(parts_masks, dim=0))
 
-        # 重新 Padding 成 Batch
         batch_embeds = pad_sequence(
             new_inputs_embeds, batch_first=True, padding_value=0.0
         )
