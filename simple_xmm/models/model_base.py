@@ -36,7 +36,7 @@ class XMMModelBase(nn.Module):
         将文本 token 和模态特征进行拼接，构造最终送入 LLM 的输入。
         """
         new_inputs_embeds = []
-        new_labels = []
+        new_labels = [] if labels is not None else None
         new_attention_masks = []
 
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
@@ -46,13 +46,13 @@ class XMMModelBase(nn.Module):
             valid_len = attention_mask[i].sum().item()
 
             cur_embeds = inputs_embeds[i, :valid_len]  # 只取有效部分
-            cur_labels = labels[i, :valid_len]
+            cur_labels = labels[i, :valid_len] if labels is not None else None
             cur_mask = attention_mask[i, :valid_len]  # 全是 1
 
             cur_info = sorted(modal_info[i], key=lambda x: x["start"])
 
             parts_embeds = []
-            parts_labels = []
+            parts_labels = [] if labels is not None else None
             parts_masks = []
 
             cur_pos = 0
@@ -68,7 +68,8 @@ class XMMModelBase(nn.Module):
                 # 拼接之前的文本
                 if m_start > cur_pos:
                     parts_embeds.append(cur_embeds[cur_pos:m_start])
-                    parts_labels.append(cur_labels[cur_pos:m_start])
+                    if labels is not None:
+                        parts_labels.append(cur_labels[cur_pos:m_start])
                     parts_masks.append(cur_mask[cur_pos:m_start])
 
                 # 拼接模态特征
@@ -81,11 +82,15 @@ class XMMModelBase(nn.Module):
 
                     # 标签设为 IGNORE_INDEX
                     feat_len = feature.shape[0]
-                    parts_labels.append(
-                        torch.full(
-                            (feat_len,), -100, device=feature.device, dtype=torch.long
+                    if labels is not None:
+                        parts_labels.append(
+                            torch.full(
+                                (feat_len,),
+                                -100,
+                                device=feature.device,
+                                dtype=torch.long,
+                            )
                         )
-                    )
                     # Mask 设为 1
                     parts_masks.append(
                         torch.full(
@@ -99,22 +104,62 @@ class XMMModelBase(nn.Module):
             # 拼接剩余的有效文本
             if cur_pos < len(cur_embeds):
                 parts_embeds.append(cur_embeds[cur_pos:])
-                parts_labels.append(cur_labels[cur_pos:])
+                if labels is not None:
+                    parts_labels.append(cur_labels[cur_pos:])
                 parts_masks.append(cur_mask[cur_pos:])
 
             new_inputs_embeds.append(torch.cat(parts_embeds, dim=0))
-            new_labels.append(torch.cat(parts_labels, dim=0))
+            if labels is not None:
+                new_labels.append(torch.cat(parts_labels, dim=0))
             new_attention_masks.append(torch.cat(parts_masks, dim=0))
 
         batch_embeds = pad_sequence(
             new_inputs_embeds, batch_first=True, padding_value=0.0
         )
-        batch_labels = pad_sequence(new_labels, batch_first=True, padding_value=-100)
+        batch_labels = None
+        if labels is not None:
+            batch_labels = pad_sequence(
+                new_labels, batch_first=True, padding_value=-100
+            )
         batch_masks = pad_sequence(
             new_attention_masks, batch_first=True, padding_value=0
         )
 
         return batch_embeds, batch_labels, batch_masks
+
+    @torch.no_grad()
+    def generate(
+        self,
+        input_ids: torch.LongTensor,
+        attention_mask: torch.Tensor,
+        modal_info: Optional[List] = None,
+        **kwargs,
+    ):
+        modal_features = {}
+        # 遍历已注册的 modal_encoders
+        for modal_name in self.modal_encoders.keys():
+            values_key = f"{modal_name}_values"
+            mask_key = f"{modal_name}_attention_mask"
+
+            if values_key in kwargs and kwargs[values_key] is not None:
+                values = kwargs[values_key]
+                modal_attention_mask = kwargs.get(mask_key)
+
+                modal_features[modal_name] = self.encode_modality(
+                    modal_name, values, modal_attention_mask
+                )
+
+        # splice
+        if modal_features and modal_info:
+            inputs_embeds, _, attention_mask = self.prepare_multimodal_inputs(
+                input_ids, None, attention_mask, modal_info, modal_features
+            )
+        else:
+            inputs_embeds = self.llm.get_input_embeddings()(input_ids)
+
+        return self.llm.generate(
+            inputs_embeds=inputs_embeds, attention_mask=attention_mask, **kwargs
+        )
 
     def forward(
         self,
