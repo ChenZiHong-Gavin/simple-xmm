@@ -18,6 +18,7 @@ from simple_xmm.models.model_linear import XMMLinearProjectorModel
 from simple_xmm.models.model_mlp import XMMMlpProjectorModel
 from simple_xmm.models.model_qformer import XMMQFormerProjectorModel
 from simple_xmm.modalities import MODALITY_PROCESSORS
+from simple_xmm.scripts.load_model import load_pretrained_weights
 
 
 logging.basicConfig(level=logging.INFO)
@@ -237,6 +238,9 @@ def run_train(config_path, stage):
         model_cls = XMMMlpProjectorModel
 
     model = model_cls(llm=llm, modal_configs=modal_configs)
+
+    if "pretrained_weights" in cfg["model"]:
+        load_pretrained_weights(model, cfg["model"]["pretrained_weights"])
 
     # Freeze modules if configured
     freeze_modules = cfg["model"].get("freeze_modules", [])
