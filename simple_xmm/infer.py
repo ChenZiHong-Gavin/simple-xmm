@@ -40,6 +40,11 @@ def main():
         "--temperature", type=float, default=0.7, help="Sampling temperature"
     )
     parser.add_argument("--top_p", type=float, default=0.9, help="Top p sampling")
+    parser.add_argument(
+        "--use_chat_template",
+        action="store_true",
+        help="Apply chat template to input text",
+    )
 
     args = parser.parse_args()
 
@@ -60,6 +65,7 @@ def main():
         do_sample=args.do_sample,
         temperature=args.temperature,
         top_p=args.top_p,
+        use_chat_template=args.use_chat_template,
     )
 
 

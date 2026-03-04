@@ -121,6 +121,7 @@ def run_infer(
     do_sample=True,
     temperature=0.7,
     top_p=0.9,
+    use_chat_template=False,
     **kwargs,
 ):
     if not text and not input_file:
@@ -143,6 +144,13 @@ def run_infer(
     modal_configs = (
         cfg["model"]["modal_configs"] if "modal_configs" in cfg["model"] else {}
     )
+
+    # Apply chat template if requested
+    if use_chat_template:
+        messages = [{"role": "user", "content": text}]
+        text = tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
 
     # 2. Processors
     logger.info("Setting up processors...")
