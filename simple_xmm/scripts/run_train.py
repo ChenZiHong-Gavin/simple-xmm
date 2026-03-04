@@ -1,4 +1,3 @@
-import os
 import logging
 from typing import Dict
 import torch
@@ -176,6 +175,9 @@ def build_datasets(data_config: Dict, tokenizer, processors, stage):
             processors=processors,
             max_samples=data_config.get("max_samples", None),
             cutoff_len=data_config.get("cutoff_len", 2048),
+            dataset_name=data_config.get("dataset_name", None),
+            split=data_config.get("split", "train"),
+            data_files=data_config.get("data_files", None),
         )
     else:
         raise ValueError(f"Unknown stage: {stage}")
